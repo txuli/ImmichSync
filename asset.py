@@ -1,7 +1,7 @@
 
 import os
 import requests
-import datetime
+from datetime import datetime
 from dotenv import load_dotenv
 from metadata import get_metadata,  get_photo_dates
 
