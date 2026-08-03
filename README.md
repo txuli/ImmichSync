@@ -42,12 +42,9 @@ IMMICH_URL=https://your-immich-instance.example.com
 IMMICH_API_KEY=your-api-key-here
 ```
 
-The `.env` file is git-ignored and should never be committed.
-
 ## Usage
 
 ```bash
 python main.py
 ```
 
-The script runs in a loop, checking for newly connected drives every few seconds. When one is found, confirm the prompt to start scanning and uploading its photos to Immich.
