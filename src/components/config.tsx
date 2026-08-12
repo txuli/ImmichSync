@@ -2,7 +2,8 @@ import ImmichForm from "./ImmichForm"
 import { invoke } from '@tauri-apps/api/core';
 import { useState } from "react";
 export default function config() {
-    const [response, setResponse] = useState<{ valid: boolean } | null>(null);
+    const [response, setResponse] = useState<{  valid: boolean, type_acc :string  } | null>(null);
+     
     return (
         <div className="relative h-full bg-[#15171C]">
             <div className="p-6  ">
@@ -22,7 +23,9 @@ export default function config() {
                         className="grid space-y-2 my-4"
                         onSubmit={(e) => {
                             e.preventDefault();
-                            // TODO: guardar credenciales
+                            const url = (document.getElementById('url') as HTMLInputElement).value;
+                            const token = (document.getElementById('key') as HTMLInputElement).value;
+                            invoke('save_credentials', { url, token }).then((res) => setResponse(res as { valid: boolean, type_acc: string }))
                         }}
                     >
                         <label htmlFor="url"> Immich  URL</label>
@@ -34,7 +37,7 @@ export default function config() {
                                 e.preventDefault();
                                 const url = (document.getElementById('url') as HTMLInputElement).value;
                                 const token = (document.getElementById('key') as HTMLInputElement).value;
-                                invoke('verify_token', { url, token }).then((res) => setResponse(res as { valid: boolean }))
+                                invoke('verify_token', { url, token }).then((res) => setResponse(res as { valid: boolean, type_acc: string }))
 
                             }}> test connection </button>
                             <div className="flex items-center gap-4">
@@ -42,15 +45,26 @@ export default function config() {
                                     save
                                 </button>
 
-                                {response?.valid && (
+                                {response?.valid  && response.type_acc=="credential"  && (
                                     <p className="text-green-500">
                                         Your token is valid you can save the config.
                                     </p>
                                 )}
 
-                                {response && !response.valid && (
+                                {response && !response.valid && response.type_acc=="credential" && (
                                     <p className="text-red-500">
                                         Your token is not valid.
+                                    </p>
+                                )}
+                                {response?.valid  && response.type_acc=="save"  && (
+                                    <p className="text-green-500">
+                                        Settings saved successfully.
+                                    </p>
+                                )}
+
+                                {response && !response.valid && response.type_acc=="save" && (
+                                    <p className="text-red-500">
+                                        Failed to save settings.
                                     </p>
                                 )}
                             </div>
