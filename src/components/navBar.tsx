@@ -8,7 +8,7 @@ interface NavBarProps {
 }
 
 export default function navBar({ active, onSelect }: NavBarProps) {
-    const [isConnected, setConnected] = useState(false)
+    const [isConnected] = useState(false)
     return (
         <>
             <div className="bg-[#1A1D24] h-full  w-1/5 relative ">
