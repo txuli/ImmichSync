@@ -1,5 +1,3 @@
-import { Children } from "react";
-
 interface SectionProps {
   children: React.ReactNode;
   className?: string;
