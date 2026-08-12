@@ -1,9 +1,10 @@
 import ImmichForm from "./ImmichForm"
 import { invoke } from '@tauri-apps/api/core';
 import { useState } from "react";
+import Options from "./options";
 export default function config() {
-    const [response, setResponse] = useState<{  valid: boolean, type_acc :string  } | null>(null);
-     
+    const [response, setResponse] = useState<{ valid: boolean, type_acc: string } | null>(null);
+
     return (
         <div className="relative h-full bg-[#15171C]">
             <div className="p-6  ">
@@ -45,24 +46,24 @@ export default function config() {
                                     save
                                 </button>
 
-                                {response?.valid  && response.type_acc=="credential"  && (
+                                {response?.valid && response.type_acc == "credential" && (
                                     <p className="text-green-500">
                                         Your token is valid you can save the config.
                                     </p>
                                 )}
 
-                                {response && !response.valid && response.type_acc=="credential" && (
+                                {response && !response.valid && response.type_acc == "credential" && (
                                     <p className="text-red-500">
                                         Your token is not valid.
                                     </p>
                                 )}
-                                {response?.valid  && response.type_acc=="save"  && (
+                                {response?.valid && response.type_acc == "save" && (
                                     <p className="text-green-500">
                                         Settings saved successfully.
                                     </p>
                                 )}
 
-                                {response && !response.valid && response.type_acc=="save" && (
+                                {response && !response.valid && response.type_acc == "save" && (
                                     <p className="text-red-500">
                                         Failed to save settings.
                                     </p>
@@ -72,6 +73,21 @@ export default function config() {
 
 
                     </form>
+                </ImmichForm>
+                <ImmichForm>
+                    <Options
+                        title="Run in Background"
+                        description="Allow the app to process photos and sync media automatically in the background."
+                    />
+                    <Options
+                        title="Notifications"
+                        description="Receive alerts about upload progress, backup status, and potential errors."
+                    />
+                    <Options
+                        title="Remove Assets from SD Card"
+                        description="Automatically delete local files from the SD card after they are successfully uploaded."
+                    />
+
                 </ImmichForm>
             </div>
         </div>
