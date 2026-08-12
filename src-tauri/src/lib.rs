@@ -1,11 +1,11 @@
 
-use std::io::Write;
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 use std::fs::File;
+use std::io::BufReader;
 use serde_json::json;
 pub mod models;
 pub use models::CheckToken;
 pub use models::ValidResponse;
+pub use models::Settings;
 
 #[tauri::command]
 async fn verify_token(url: &str, token: &str) -> Result<ValidResponse, String> {
@@ -41,6 +41,15 @@ async fn save_credentials(url: &str, token: &str) -> Result<ValidResponse, Strin
         Err(_err) => Ok(ValidResponse { valid: false, type_acc:"save".to_string() }),
     }
         
+}
+#[tauri::command]
+async fn load_config() -> Result<Settings, String> {
+    let file = File::open("config.json").map_err(|e| e.to_string())?;
+    let reader = BufReader::new(file);
+
+    let s = serde_json::from_reader(reader).map_err(|e| e.to_string())?;
+
+    Ok(s)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
