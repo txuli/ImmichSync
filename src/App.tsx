@@ -10,7 +10,7 @@ function App() {
   return (
     <div className="flex h-full">
       <NavBar active={view} onSelect={setView} />
-      <div className="flex-1 h-full overflow-auto">
+      <div className="flex-1 min-w-0 h-full overflow-auto">
         {view === "dashboard" && <Dashboard />}
         {view === "config" && <Config />}
       </div>

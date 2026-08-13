@@ -5,6 +5,7 @@ pub mod models;
 pub use models::CheckToken;
 pub use models::Settings;
 pub use models::ValidResponse;
+use tauri::tray::TrayIconBuilder;
 
 #[tauri::command]
 async fn verify_token(url: &str, token: &str) -> Result<ValidResponse, String> {
@@ -65,6 +66,12 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![verify_token, save_credentials])
+        .setup(|app| {
+            let tray = TrayIconBuilder::new()
+                .icon(app.default_window_icon().unwrap().clone())
+                .build(app)?;
+            Ok(())
+        })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
