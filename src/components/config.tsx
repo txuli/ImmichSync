@@ -1,8 +1,26 @@
+
 import ImmichForm from "./ImmichForm"
 import { invoke } from '@tauri-apps/api/core';
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Options from "./options";
+import { enable, isEnabled, disable } from '@tauri-apps/plugin-autostart';
 export default function config() {
+    const [runInBackground, setRunInBackground] = useState(false);
+    const [notifications, setNotifications] = useState(true);
+    const [removeAssets, setRemoveAssets] = useState(true);
+
+    useEffect(() => {
+        async function check() {
+            setRunInBackground(await isEnabled())
+        }
+        check()
+    }, [])
+
+    async function toggle(value: boolean) {
+        setRunInBackground(value);
+        if (value) await enable()
+        else await disable();
+    }
     const [response, setResponse] = useState<{ valid: boolean, type_acc: string } | null>(null);
 
     return (
@@ -76,16 +94,22 @@ export default function config() {
                 </ImmichForm>
                 <ImmichForm>
                     <Options
+                        checked={runInBackground}
                         title="Run in Background"
                         description="Allow the app to process photos and sync media automatically in the background."
+                        onChange={toggle}
                     />
                     <Options
+                        checked={notifications}
                         title="Notifications"
                         description="Receive alerts about upload progress, backup status, and potential errors."
+                        onChange={setNotifications}
                     />
                     <Options
+                        checked={removeAssets}
                         title="Remove Assets from SD Card"
                         description="Automatically delete local files from the SD card after they are successfully uploaded."
+                        onChange={setRemoveAssets}
                     />
 
                 </ImmichForm>
