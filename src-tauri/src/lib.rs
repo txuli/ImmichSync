@@ -1,12 +1,14 @@
 use serde_json::json;
 use std::fs::File;
-use std::io::BufReader;
 pub mod models;
 pub use models::CheckToken;
 pub use models::Settings;
 pub use models::ValidResponse;
-use tauri::tray::TrayIconBuilder;
+use std::thread;
+use std::time::Duration;
+use sysinfo::Disks;
 
+use tauri::tray::TrayIconBuilder;
 #[tauri::command]
 async fn verify_token(url: &str, token: &str) -> Result<ValidResponse, String> {
     let client = reqwest::Client::new();
@@ -63,6 +65,7 @@ async fn load_config() -> Result<Settings, String> {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![verify_token, save_credentials])
@@ -70,6 +73,35 @@ pub fn run() {
             let tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .build(app)?;
+
+            thread::spawn(|| {
+                let mut disks = Disks::new_with_refreshed_list();
+                let mut old_disks: Vec<String> = vec![];
+                let mut actual_disks: Vec<String> = vec![];
+                loop {
+                    thread::sleep(Duration::from_secs(1));
+
+                    actual_disks = disks
+                        .list()
+                        .iter()
+                        .filter(|disk| disk.is_removable())
+                        .map(|disk| disk.name().to_string_lossy().to_string())
+                        .collect();
+
+                    disks.refresh(true);
+
+                    println!("actual {:?}", actual_disks);
+                    for disk in &actual_disks {
+                        if !old_disks.iter().any(|n| n == disk) {
+                            println!("adfasdf")
+                        }
+                    }
+
+                    old_disks = actual_disks;
+                    println!("old {:?}", old_disks);
+                }
+            });
+
             Ok(())
         })
         .run(tauri::generate_context!())
