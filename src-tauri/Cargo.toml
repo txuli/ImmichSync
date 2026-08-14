@@ -30,3 +30,7 @@ tauri-plugin-notification = "2"
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"
 
+[target.'cfg(windows)'.dependencies]
+tauri-winrt-notification = "0.7"
+windows-registry = "0.6"
+

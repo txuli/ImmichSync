@@ -1,6 +1,7 @@
 use serde_json::json;
 use std::fs::File;
 pub mod models;
+mod notification;
 pub use models::CheckToken;
 pub use models::Settings;
 pub use models::ValidResponse;
@@ -74,7 +75,8 @@ pub fn run() {
                 .icon(app.default_window_icon().unwrap().clone())
                 .build(app)?;
 
-            thread::spawn(|| {
+            let handle = app.handle().clone();
+            thread::spawn(move || {
                 let mut disks = Disks::new_with_refreshed_list();
                 let mut old_disks: Vec<String> = vec![];
                 let mut actual_disks: Vec<String> = vec![];
@@ -93,7 +95,7 @@ pub fn run() {
                     println!("actual {:?}", actual_disks);
                     for disk in &actual_disks {
                         if !old_disks.iter().any(|n| n == disk) {
-                            println!("adfasdf")
+                            notification::newDevice::notify_new_device(&handle, disk);
                         }
                     }
 
