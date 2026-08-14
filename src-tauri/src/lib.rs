@@ -92,16 +92,13 @@ pub fn run() {
                         .collect();
 
                     disks.refresh(true);
-
-                    println!("actual {:?}", actual_disks);
+   
                     for disk in &actual_disks {
                         if !old_disks.iter().any(|n| n == disk) {
                             notification::newDevice::notify_new_device(&handle, disk);
                         }
                     }
-
-                    old_disks = actual_disks;
-                    println!("old {:?}", old_disks);
+                    old_disks = actual_disks;     
                 }
             });
 

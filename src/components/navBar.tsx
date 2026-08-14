@@ -1,4 +1,5 @@
 import { useState } from "react"
+import logo from "../assets/logo.svg"
 
 export type View = "dashboard" | "config";
 
@@ -12,8 +13,9 @@ export default function navBar({ active, onSelect }: NavBarProps) {
     return (
         <div className="bg-[#1A1D24] h-full w-56 shrink-0 flex flex-col">
             <div className="flex-1 overflow-auto">
-                <div className="pt-4 px-2">
-                    <h1 className="text-2xl text-center">Immich Sync</h1>
+                <div className="pt-4 px-2 flex flex-col items-center">
+                    <img src={logo} alt="Immich Sync" className="w-14 h-14" />
+                    <h1 className="text-2xl text-center mt-2">Immich Sync</h1>
                     <p className="text-gray-500 text-center">USB to immich</p>
                 </div>
                 <div className="grid space-y-4 mt-4">

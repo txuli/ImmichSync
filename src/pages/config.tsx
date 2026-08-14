@@ -1,8 +1,8 @@
 
-import ImmichForm from "./ImmichForm"
+import ImmichForm from "../components/ImmichForm"
 import { invoke } from '@tauri-apps/api/core';
 import { useEffect, useState } from "react";
-import Options from "./options";
+import Options from "../components/options";
 import { enable, isEnabled, disable } from '@tauri-apps/plugin-autostart';
 export default function config() {
     const [runInBackground, setRunInBackground] = useState(false);

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import "./App.css";
 import NavBar, { type View } from "./components/navBar";
-import Dashboard from "./components/dashboard";
-import Config from "./components/config";
+import Dashboard from "./pages/dashboard";
+import Config from "./pages/config";
 
 function App() {
   const [view, setView] = useState<View>("dashboard");
