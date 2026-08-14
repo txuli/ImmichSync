@@ -1865,7 +1865,9 @@ dependencies = [
  "tauri-plugin-autostart",
  "tauri-plugin-notification",
  "tauri-plugin-opener",
+ "tauri-winrt-notification",
  "tokio",
+ "windows-registry",
 ]
 
 [[package]]
