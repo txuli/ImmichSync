@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
 
-
 fn app_icon_path<R: tauri::Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
     if let Ok(path) = app
         .path()
@@ -34,13 +33,10 @@ fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
     }
 }
 
-
-
 #[cfg(windows)]
 const APP_ID: &str = "com.txuli.immichsync";
 #[cfg(windows)]
 const APP_NAME: &str = "ImmichSync";
-
 
 #[cfg(windows)]
 fn register_aumid(icon_path: Option<&std::path::Path>) {
