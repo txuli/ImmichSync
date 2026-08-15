@@ -55,13 +55,7 @@ async fn save_credentials(app: AppHandle,url: &str, token: &str) -> Result<Valid
         }),
     }
 }
-/* #[tauri::command]
-async fn load_config() -> Result<Settings, String> {
-    let file = File::open("config.json").map_err(|e| e.to_string())?;
-    let reader = BufReader::new(file);
-    let s = serde_json::from_reader(reader).map_err(|e| e.to_string())?;
-    Ok(s)
-} */
+
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
