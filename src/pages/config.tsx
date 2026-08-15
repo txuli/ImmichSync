@@ -4,18 +4,42 @@ import { invoke } from '@tauri-apps/api/core';
 import { useEffect, useState } from "react";
 import Options from "../components/options";
 import { enable, isEnabled, disable } from '@tauri-apps/plugin-autostart';
+import { load } from '@tauri-apps/plugin-store';
+const store = await load('settings.json', { autoSave: true });
 export default function config() {
+    
     const [runInBackground, setRunInBackground] = useState(false);
-    const [notifications, setNotifications] = useState(true);
-    const [removeAssets, setRemoveAssets] = useState(true);
+    const [notifications, setNotifications] = useState(false);
+    const [removeAssets, setRemoveAssets] = useState(false);
 
     useEffect(() => {
         async function check() {
             setRunInBackground(await isEnabled())
         }
+        async function load() {
+            
+            const notifData = await store.get<{ value: boolean }>('notif');
+            setNotifications(notifData?.value ?? false);
+            const rmAssets = await store.get<{ value: boolean }>('rmAssets');
+            setRemoveAssets(rmAssets?.value ?? false)
+        }
+
+        load()
         check()
     }, [])
-
+    async function save(type: string, value: boolean) {
+        switch (type) {
+            case "notif":
+                console.log("asdfasdf")
+                setNotifications(value)
+                await store.set('notif', { value })
+                break
+            case "removeAssets":
+                setRemoveAssets(value)
+                await store.set('rmAssets', { value })
+                break
+        }
+    }
     async function toggle(value: boolean) {
         setRunInBackground(value);
         if (value) await enable()
@@ -95,23 +119,30 @@ export default function config() {
                 <ImmichForm>
                     <Options
                         checked={runInBackground}
-                        title="Run in Background"
-                        description="Allow the app to process photos and sync media automatically in the background."
+                        title="Run on Startup"
+                        description="Allow the app to start automatically when you log in."
                         onChange={toggle}
                     />
                     <Options
                         checked={notifications}
                         title="Notifications"
                         description="Receive alerts about upload progress, backup status, and potential errors."
-                        onChange={setNotifications}
+                        onChange={(val) => save('notif', val)}
                     />
                     <Options
                         checked={removeAssets}
                         title="Remove Assets from SD Card"
                         description="Automatically delete local files from the SD card after they are successfully uploaded."
-                        onChange={setRemoveAssets}
+                        onChange={(val) => save('removeAssets', val)}
                     />
 
+                </ImmichForm>
+                <ImmichForm>
+                    <h2 className="text-xl  my-4 mb-1">Allowed extensions</h2>
+                    <p className="text-gray-400 text-sm">Select the extensions that you want to sync.</p>
+                    <form action="">
+
+                    </form>
                 </ImmichForm>
             </div>
         </div>
