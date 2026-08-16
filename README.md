@@ -49,7 +49,7 @@ Installers are produced in `src-tauri/target/release/bundle/`.
 
 ## Project structure
 
-```
+```text
 src/                     React + TypeScript frontend
   pages/                 Dashboard and Config screens
   components/            Shared UI pieces (nav bar, forms, toggles)
