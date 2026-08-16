@@ -1,17 +1,17 @@
 # ImmichSync
 
-A Windows tray app that watches for newly connected USB drives / SD cards, and offers to upload the photos and videos it finds straight to your [Immich](https://immich.app/) server — grouped into a dated album, no manual `immich-go` commands needed.
+A Windows tray app that watches for newly connected USB drives / SD cards, and offers to upload the photos and videos it finds straight to your [Immich](https://immich.app/) server, grouped into a dated album, no manual `immich-go` commands needed.
 
 > **Disclaimer:** This is an independent, unofficial project. It is **not affiliated with, endorsed by, or sponsored by Immich** (or its authors/maintainers). It talks to a self-hosted Immich server through [immich-go](https://github.com/simulot/immich-go), which is bundled as a sidecar binary.
 
 ## Features
 
-- **Automatic drive detection** — runs in the background and watches for removable disks being connected.
+- **Automatic drive detection** runs in the background and watches for removable disks being connected.
 - **Native Windows toast notifications** with "Sync" / "Ignore" actions when a new device is detected.
 - **One-click upload** via [immich-go](https://github.com/simulot/immich-go), which handles deduplication, EXIF/date extraction, and album assignment. Each sync creates a new album named `ImmichSync - <date> <time>`.
 - **Dashboard** with live sync status (idle / syncing / success / error), server connection health, and a recent-activity feed.
-- **Run on startup** — optionally launches at login and stays hidden in the tray (no window flash) until you open it or a sync needs your attention.
-- **Self-updating** — checks GitHub Releases for new versions and can download/install/relaunch from the Config page.
+- **Run on startup** optionally launches at login and stays hidden in the tray (no window flash) until you open it or a sync needs your attention.
+- **Self-updating** checks GitHub Releases for new versions and can download/install/relaunch from the Config page.
 
 ### Not implemented yet
 
