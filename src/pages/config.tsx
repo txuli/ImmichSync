@@ -6,33 +6,34 @@ import Options from "../components/options";
 import { enable, isEnabled, disable } from '@tauri-apps/plugin-autostart';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
-import { load } from '@tauri-apps/plugin-store';
-const store = await load('settings.json', { autoSave: true });
+// Notifications / remove-assets settings aren't wired to any backend logic
+// yet (see README) — commented out along with their UI below until they do
+// something, to keep `noUnusedLocals` happy.
+// import { load } from '@tauri-apps/plugin-store';
+// const store = await load('settings.json', { autoSave: true });
 export default function config() {
-    
+
     const [runInBackground, setRunInBackground] = useState(false);
-    const [notifications, setNotifications] = useState(false);
-    const [removeAssets, setRemoveAssets] = useState(false);
+    // const [notifications, setNotifications] = useState(false);
+    // const [removeAssets, setRemoveAssets] = useState(false);
 
     useEffect(() => {
         async function check() {
             setRunInBackground(await isEnabled())
         }
-        async function load() {
-            
+        /* async function load() {
             const notifData = await store.get<{ value: boolean }>('notif');
             setNotifications(notifData?.value ?? false);
             const rmAssets = await store.get<{ value: boolean }>('rmAssets');
             setRemoveAssets(rmAssets?.value ?? false)
-        }
+        } */
 
-        load()
+        /* load() */
         check()
     }, [])
-    async function save(type: string, value: boolean) {
+    /* async function save(type: string, value: boolean) {
         switch (type) {
             case "notif":
-                console.log("asdfasdf")
                 setNotifications(value)
                 await store.set('notif', { value })
                 break
@@ -41,7 +42,7 @@ export default function config() {
                 await store.set('rmAssets', { value })
                 break
         }
-    }
+    } */
     async function toggle(value: boolean) {
         setRunInBackground(value);
         if (value) await enable()
