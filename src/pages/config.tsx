@@ -162,7 +162,7 @@ export default function config() {
                         description="Allow the app to start automatically when you log in."
                         onChange={toggle}
                     />
-                    <Options
+                    {/* <Options
                         checked={notifications}
                         title="Notifications"
                         description="Receive alerts about upload progress, backup status, and potential errors."
@@ -173,7 +173,7 @@ export default function config() {
                         title="Remove Assets from SD Card"
                         description="Automatically delete local files from the SD card after they are successfully uploaded."
                         onChange={(val) => save('removeAssets', val)}
-                    />
+                    /> */}
 
                 </ImmichForm>
                 <ImmichForm>
