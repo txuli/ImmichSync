@@ -1,5 +1,20 @@
+use crate::models::SyncStatusEvent;
 use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
+
+/// Broadcasts the "sync-status" event so the dashboard can show live
+/// progress and a recent-activity feed.
+fn emit_sync_status(app: &AppHandle, status: &str, disk_name: &str, error: Option<String>) {
+    let payload = SyncStatusEvent {
+        status: status.to_string(),
+        disk_name: disk_name.to_string(),
+        error,
+        timestamp: chrono::Local::now().to_rfc3339(),
+    };
+    if let Err(err) = app.emit("sync-status", payload) {
+        eprintln!("[notification] Failed to emit sync-status event: {err:?}");
+    }
+}
 
 fn debug_log(msg: impl AsRef<str>) {
     use std::io::Write;
@@ -97,22 +112,27 @@ pub fn notify_new_device(app: &AppHandle, disk_name: &str, mount_point: &std::pa
                     debug_log("sync button pressed, starting thread");
                     let app_handle = app_handle.clone();
                     let path = mount_point.to_string_lossy().to_string();
+                    let disk_name = disk_name.clone();
                     std::thread::spawn(move || {
+                        emit_sync_status(&app_handle, "syncing", &disk_name, None);
                         debug_log("thread started, calling sync_assets");
                         let sync_result = tauri::async_runtime::block_on(crate::sync::sync_assets(
-                            app_handle, path,
+                            app_handle.clone(),
+                            path,
                         ));
                         debug_log(format!("sync_assets finished, ok={}", sync_result.is_ok()));
                         match sync_result {
                             Ok(_) => {
                                 debug_log("calling upload_success");
                                 upload_success();
+                                emit_sync_status(&app_handle, "success", &disk_name, None);
                                 debug_log("upload_success finished");
                             }
                             Err(err) => {
                                 eprintln!("[sync] Sync failed: {err}");
                                 debug_log(format!("calling upload_failed: {err}"));
                                 upload_failed(&err);
+                                emit_sync_status(&app_handle, "error", &disk_name, Some(err));
                                 debug_log("upload_failed finished");
                             }
                         }

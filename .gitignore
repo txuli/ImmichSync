@@ -23,3 +23,7 @@ dist-ssr
 *.sln
 *.sw?
 config.json
+
+# Tauri updater signing key (private half) — never commit this
+*.key
+!*.key.pub

@@ -4,6 +4,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { useEffect, useState } from "react";
 import Options from "../components/options";
 import { enable, isEnabled, disable } from '@tauri-apps/plugin-autostart';
+import { check } from '@tauri-apps/plugin-updater';
+import { relaunch } from '@tauri-apps/plugin-process';
 import { load } from '@tauri-apps/plugin-store';
 const store = await load('settings.json', { autoSave: true });
 export default function config() {
@@ -46,6 +48,43 @@ export default function config() {
         else await disable();
     }
     const [response, setResponse] = useState<{ valid: boolean, type_acc: string } | null>(null);
+
+    type UpdateStatus = "idle" | "checking" | "available" | "up-to-date" | "installing" | "error";
+    const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
+    const [updateVersion, setUpdateVersion] = useState<string | null>(null);
+    const [updateError, setUpdateError] = useState<string | null>(null);
+
+    async function checkForUpdates() {
+        setUpdateStatus("checking");
+        setUpdateError(null);
+        try {
+            const update = await check();
+            if (update) {
+                setUpdateVersion(update.version);
+                setUpdateStatus("available");
+            } else {
+                setUpdateStatus("up-to-date");
+            }
+        } catch (err) {
+            setUpdateError(String(err));
+            setUpdateStatus("error");
+        }
+    }
+
+    async function installUpdate() {
+        setUpdateStatus("installing");
+        setUpdateError(null);
+        try {
+            const update = await check();
+            if (update) {
+                await update.downloadAndInstall();
+                await relaunch();
+            }
+        } catch (err) {
+            setUpdateError(String(err));
+            setUpdateStatus("error");
+        }
+    }
 
     return (
         <div className="relative h-full bg-[#15171C]">
@@ -138,12 +177,43 @@ export default function config() {
 
                 </ImmichForm>
                 <ImmichForm>
+                    <div className="flex items-center justify-between py-4">
+                        <div>
+                            <h3 className="text-sm font-medium text-gray-200">App updates</h3>
+                            <p className="text-xs text-gray-400 mt-0.5">
+                                {updateStatus === "idle" && "Check for a new version of ImmichSync."}
+                                {updateStatus === "checking" && "Checking for updates…"}
+                                {updateStatus === "up-to-date" && "You're on the latest version."}
+                                {updateStatus === "available" && `Version ${updateVersion} is available.`}
+                                {updateStatus === "installing" && "Downloading and installing…"}
+                                {updateStatus === "error" && `Could not check for updates: ${updateError}`}
+                            </p>
+                        </div>
+                        {updateStatus !== "available" ? (
+                            <button
+                                onClick={checkForUpdates}
+                                disabled={updateStatus === "checking" || updateStatus === "installing"}
+                                className="rounded-md px-3 py-1 text-sm disabled:opacity-50"
+                            >
+                                Check for updates
+                            </button>
+                        ) : (
+                            <button
+                                onClick={installUpdate}
+                                className="bg-[#5B8DEF] text-white rounded-md px-3 py-1 text-sm"
+                            >
+                                Install &amp; restart
+                            </button>
+                        )}
+                    </div>
+                </ImmichForm>
+                {/* <ImmichForm>
                     <h2 className="text-xl  my-4 mb-1">Allowed extensions</h2>
                     <p className="text-gray-400 text-sm">Select the extensions that you want to sync.</p>
                     <form action="">
 
                     </form>
-                </ImmichForm>
+                </ImmichForm> */}
             </div>
         </div>
     )
