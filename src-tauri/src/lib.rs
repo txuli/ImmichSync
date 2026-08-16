@@ -11,7 +11,12 @@ use std::thread;
 use std::time::Duration;
 use sysinfo::Disks;
 use tauri::AppHandle;
+use tauri::Manager;
 use tauri_plugin_store::StoreExt;
+
+/// Passed by the autostart plugin when the OS launches the app at login,
+/// so we know to keep the window hidden instead of showing it.
+const HIDDEN_ARG: &str = "--hidden";
 
 use tauri::tray::TrayIconBuilder;
 #[tauri::command]
@@ -64,7 +69,11 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
-        .plugin(tauri_plugin_autostart::Builder::new().build())
+        .plugin(
+            tauri_plugin_autostart::Builder::new()
+                .arg(HIDDEN_ARG)
+                .build(),
+        )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![verify_token, save_credentials, sync_assets])
@@ -72,6 +81,15 @@ pub fn run() {
             let tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .build(app)?;
+
+            // The window starts hidden (see tauri.conf.json). Only reveal it
+            // unless we were launched by the autostart plugin with --hidden.
+            let launched_hidden = std::env::args().any(|arg| arg == HIDDEN_ARG);
+            if !launched_hidden {
+                if let Some(window) = app.get_webview_window("main") {
+                    window.show()?;
+                }
+            }
 
             let handle = app.handle().clone();
             thread::spawn(move || {
