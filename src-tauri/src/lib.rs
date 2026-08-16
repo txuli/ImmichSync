@@ -5,6 +5,8 @@ mod notification;
 pub use models::CheckToken;
 pub use models::Settings;
 pub use models::ValidResponse;
+pub mod sync;
+pub use sync::sync_assets;
 use std::thread;
 use std::time::Duration;
 use sysinfo::Disks;
@@ -20,7 +22,7 @@ async fn verify_token(url: &str, token: &str) -> Result<ValidResponse, String> {
         .header("x-api-key", token)
         .send()
         .await
-        .map_err(|err| format!("Error de red: {}", err))?;
+        .map_err(|err| format!("Network error: {}", err))?;
 
     if response.status().is_success() {
         Ok(ValidResponse {
@@ -64,7 +66,8 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![verify_token, save_credentials])
+        .plugin(tauri_plugin_shell::init())
+        .invoke_handler(tauri::generate_handler![verify_token, save_credentials, sync_assets])
         .setup(|app| {
             let tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
@@ -74,25 +77,29 @@ pub fn run() {
             thread::spawn(move || {
                 let mut disks = Disks::new_with_refreshed_list();
                 let mut old_disks: Vec<String> = vec![];
-                let mut actual_disks: Vec<String> = vec![];
                 loop {
                     thread::sleep(Duration::from_secs(1));
 
-                    actual_disks = disks
+                    let actual_disks: Vec<(String, std::path::PathBuf)> = disks
                         .list()
                         .iter()
                         .filter(|disk| disk.is_removable())
-                        .map(|disk| disk.name().to_string_lossy().to_string())
+                        .map(|disk| {
+                            (
+                                disk.name().to_string_lossy().to_string(),
+                                disk.mount_point().to_path_buf(),
+                            )
+                        })
                         .collect();
 
                     disks.refresh(true);
-   
-                    for disk in &actual_disks {
-                        if !old_disks.iter().any(|n| n == disk) {
-                            notification::newDevice::notify_new_device(&handle, disk);
+
+                    for (name, mount_point) in &actual_disks {
+                        if !old_disks.iter().any(|n| n == name) {
+                            notification::newDevice::notify_new_device(&handle, name, mount_point);
                         }
                     }
-                    old_disks = actual_disks;     
+                    old_disks = actual_disks.iter().map(|(name, _)| name.clone()).collect();
                 }
             });
 

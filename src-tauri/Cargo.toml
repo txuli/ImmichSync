@@ -27,6 +27,9 @@ reqwest = { version = "0.13.4", features = ["json"] }
 sysinfo = "0.39.6"
 tauri-plugin-notification = "2"
 tauri-plugin-store = "2"
+tauri-plugin-shell = "2"
+chrono = "0.4.45"
+tauri-plugin-log = "2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"

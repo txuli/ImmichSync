@@ -31,6 +31,7 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "externalBin": ["binaries/immich-go"],
     "resources": [
       "icons/128x128.png"
     ]
