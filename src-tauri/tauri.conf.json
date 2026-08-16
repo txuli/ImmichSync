@@ -36,6 +36,15 @@
     "externalBin": ["binaries/immich-go"],
     "resources": [
       "icons/128x128.png"
-    ]
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDFCNDc3NjlFQTM4REEzMEQKUldRTm80MmpublpIRzFtR3VIT05Qc1R0cWZNWDRyMTZ0dWJ0d3piTzFJTUNSUk1LTHNZWHU5VWcK",
+      "endpoints": [
+        "https://github.com/txuli/ImmichSync/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

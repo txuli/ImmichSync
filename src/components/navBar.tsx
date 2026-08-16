@@ -1,4 +1,5 @@
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { listen } from "@tauri-apps/api/event"
 import logo from "../assets/logo.svg"
 
 export type View = "dashboard" | "config";
@@ -9,7 +10,16 @@ interface NavBarProps {
 }
 
 export default function navBar({ active, onSelect }: NavBarProps) {
-    const [isConnected] = useState(false)
+    const [isConnected, setIsConnected] = useState(false)
+
+    useEffect(() => {
+        const unlisten = listen<{ status: string }>("sync-status", (event) => {
+            setIsConnected(event.payload.status === "syncing")
+        })
+        return () => {
+            unlisten.then((fn) => fn())
+        }
+    }, [])
     return (
         <div className="bg-[#1A1D24] h-full w-56 shrink-0 flex flex-col">
             <div className="flex-1 overflow-auto">

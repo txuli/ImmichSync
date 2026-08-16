@@ -6,9 +6,9 @@ pub use models::CheckToken;
 pub use models::Settings;
 pub use models::ValidResponse;
 pub mod sync;
-pub use sync::sync_assets;
 use std::thread;
 use std::time::Duration;
+pub use sync::sync_assets;
 use sysinfo::Disks;
 use tauri::AppHandle;
 use tauri::Manager;
@@ -42,11 +42,11 @@ async fn verify_token(url: &str, token: &str) -> Result<ValidResponse, String> {
     }
 }
 #[tauri::command]
-async fn save_credentials(app: AppHandle,url: &str, token: &str) -> Result<ValidResponse, String> {
+async fn save_credentials(app: AppHandle, url: &str, token: &str) -> Result<ValidResponse, String> {
     let store = app.store("settings.json").map_err(|e| e.to_string())?;
     let try_save = || -> Result<(), std::io::Error> {
-        store.set("url",json!(url));
-        store.set("token",json!(token));
+        store.set("url", json!(url));
+        store.set("token", json!(token));
         /* store.save(); */
         Ok(())
     };
@@ -63,10 +63,11 @@ async fn save_credentials(app: AppHandle,url: &str, token: &str) -> Result<Valid
     }
 }
 
-
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .plugin(
@@ -76,7 +77,11 @@ pub fn run() {
         )
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
-        .invoke_handler(tauri::generate_handler![verify_token, save_credentials, sync_assets])
+        .invoke_handler(tauri::generate_handler![
+            verify_token,
+            save_credentials,
+            sync_assets
+        ])
         .setup(|app| {
             let tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
