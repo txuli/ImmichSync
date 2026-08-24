@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react"
+import { useEffect, useState, type ReactElement } from "react"
 import { listen } from "@tauri-apps/api/event"
 import logo from "../assets/logo.svg"
 
@@ -7,6 +7,31 @@ export type View = "dashboard" | "config";
 interface NavBarProps {
     active: View;
     onSelect: (view: View) => void;
+}
+
+function DashboardIcon({ className }: { className?: string }) {
+    return (
+        <svg viewBox="0 0 24 24" fill="none" className={className}>
+            <rect x="3.5" y="3.5" width="7.5" height="7.5" rx="2" stroke="currentColor" strokeWidth="1.6" />
+            <rect x="13" y="3.5" width="7.5" height="4.5" rx="2" stroke="currentColor" strokeWidth="1.6" />
+            <rect x="13" y="10" width="7.5" height="10.5" rx="2" stroke="currentColor" strokeWidth="1.6" />
+            <rect x="3.5" y="13" width="7.5" height="7.5" rx="2" stroke="currentColor" strokeWidth="1.6" />
+        </svg>
+    )
+}
+
+function ConfigIcon({ className }: { className?: string }) {
+    return (
+        <svg viewBox="0 0 24 24" fill="none" className={className}>
+            <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" />
+            <path
+                d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M17.66 6.34l-1.42 1.42M7.76 16.24l-1.42 1.42M17.66 17.66l-1.42-1.42M7.76 7.76 6.34 6.34"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+            />
+        </svg>
+    )
 }
 
 export default function navBar({ active, onSelect }: NavBarProps) {
@@ -20,45 +45,63 @@ export default function navBar({ active, onSelect }: NavBarProps) {
             unlisten.then((fn) => fn())
         }
     }, [])
+
+    const items: { view: View; label: string; icon: (props: { className?: string }) => ReactElement }[] = [
+        { view: "dashboard", label: "Dashboard", icon: DashboardIcon },
+        { view: "config", label: "Config", icon: ConfigIcon },
+    ]
+
     return (
-        <div className="bg-[#1A1D24] h-full w-56 shrink-0 flex flex-col">
+        <div className="bg-[#1A1D24] h-full w-56 shrink-0 flex flex-col border-r border-white/5">
             <div className="flex-1 overflow-auto">
-                <div className="pt-4 px-2 flex flex-col items-center">
-                    <img src={logo} alt="Immich Sync" className="w-14 h-14" />
-                    <h1 className="text-2xl text-center mt-2">Immich Sync</h1>
-                    <p className="text-gray-500 text-center">USB to immich</p>
+                <div className="pt-6 pb-5 px-4 flex flex-col items-center border-b border-white/5">
+                    <img src={logo} alt="Immich Sync" className="w-12 h-12 drop-shadow-[0_0_12px_rgba(91,141,239,0.35)]" />
+                    <h1 className="text-lg font-semibold text-center mt-3 tracking-tight text-gray-100">Immich Sync</h1>
+                    <p className="text-gray-500 text-center text-xs mt-0.5 tracking-wide uppercase">USB to Immich</p>
                 </div>
-                <div className="grid space-y-4 mt-4">
-                    <button
-                        onClick={() => onSelect("dashboard")}
-                        className={`w-3/4 mx-auto rounded-lg py-2 transition-colors ${active === "dashboard" ? "bg-[#2A2E3A] text-white" : "text-gray-400 hover:bg-[#20232B]"}`}
-                    >
-                        Dashboard
-                    </button>
-                    <button
-                        onClick={() => onSelect("config")}
-                        className={`w-3/4 mx-auto rounded-lg py-2 transition-colors ${active === "config" ? "bg-[#2A2E3A] text-white" : "text-gray-400 hover:bg-[#20232B]"}`}
-                    >
-                        Config
-                    </button>
-                </div>
+                <nav className="flex flex-col gap-1 mt-4 px-3">
+                    {items.map(({ view, label, icon: Icon }) => {
+                        const isActive = active === view
+                        return (
+                            <button
+                                key={view}
+                                onClick={() => onSelect(view)}
+                                className={`group relative flex items-center gap-3 rounded-lg py-2.5 px-3 text-sm font-medium transition-all duration-150 ${isActive
+                                        ? "bg-[#5B8DEF]/10 text-white"
+                                        : "text-gray-400 hover:bg-white/5 hover:text-gray-200"
+                                    }`}
+                            >
+                                <span
+                                    className={`absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full bg-[#5B8DEF] transition-all duration-150 ${isActive ? "opacity-100 scale-y-100" : "opacity-0 scale-y-50"
+                                        }`}
+                                />
+                                <Icon
+                                    className={`w-[18px] h-[18px] shrink-0 transition-colors ${isActive ? "text-[#5B8DEF]" : "text-gray-500 group-hover:text-gray-300"
+                                        }`}
+                                />
+                                {label}
+                            </button>
+                        )
+                    })}
+                </nav>
             </div>
 
-            <div className="bg-[#20232B] w-3/4 mx-auto mb-4 rounded-2xl text-md border border-gray-500 p-3">
-                {
-                    isConnected ? (
-                        <div className="text-center">
-                            Device connected and uploading
-                        </div>
-                    ) : (
-                        <div className="text-center">
-                            no device to upload
-                            <div className="text-sm text-gray-400">
-                                please connect a device to start uploading
-                            </div>
-                        </div>
-                    )
-                }
+            <div className="mx-3 mb-4 rounded-xl border border-white/5 bg-[#20232B]/80 backdrop-blur-sm p-3.5 shadow-[0_1px_0_rgba(255,255,255,0.03)]">
+                <div className="flex items-center gap-2">
+                    <span className="relative flex h-2 w-2">
+                        {isConnected && (
+                            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#4ADE80] opacity-75" />
+                        )}
+                        <span className={`relative inline-flex h-2 w-2 rounded-full ${isConnected ? "bg-[#4ADE80]" : "bg-gray-600"}`} />
+                    </span>
+                    <span className="text-sm text-gray-200 font-medium">
+                        {isConnected ? "Device connected" : "No device"}
+                    </span>
+                </div>
+                <p className="text-xs text-gray-500 mt-1 leading-snug">
+                    {isConnected ? "Uploading assets to Immich…" : "Connect a device to start uploading."}
+                </p>
             </div>
-        </div>)
+        </div>
+    )
 }
