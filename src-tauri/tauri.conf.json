@@ -16,7 +16,10 @@
         "title": "immichsync",
         "width": 800,
         "height": 600,
-        "visible": false
+        "minWidth": 640,
+        "minHeight": 420,
+        "visible": false,
+        "decorations": false
       }
     ],
     "security": {

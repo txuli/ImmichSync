@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactElement } from "react"
 import { listen } from "@tauri-apps/api/event"
 import logo from "../assets/logo.svg"
-
+import config from "../assets/config.svg"
+import dashboard from "../assets/dashboard.svg"
 export type View = "dashboard" | "config";
 
 interface NavBarProps {
@@ -11,28 +12,15 @@ interface NavBarProps {
 
 function DashboardIcon({ className }: { className?: string }) {
     return (
-        <svg viewBox="0 0 24 24" fill="none" className={className}>
-            <rect x="3.5" y="3.5" width="7.5" height="7.5" rx="2" stroke="currentColor" strokeWidth="1.6" />
-            <rect x="13" y="3.5" width="7.5" height="4.5" rx="2" stroke="currentColor" strokeWidth="1.6" />
-            <rect x="13" y="10" width="7.5" height="10.5" rx="2" stroke="currentColor" strokeWidth="1.6" />
-            <rect x="3.5" y="13" width="7.5" height="7.5" rx="2" stroke="currentColor" strokeWidth="1.6" />
-        </svg>
+       <img src={dashboard} alt="dashboard" className={className}/>
     )
 }
 
 function ConfigIcon({ className }: { className?: string }) {
-    return (
-        <svg viewBox="0 0 24 24" fill="none" className={className}>
-            <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.6" />
-            <path
-                d="M12 3.5v2M12 18.5v2M20.5 12h-2M5.5 12h-2M17.66 6.34l-1.42 1.42M7.76 16.24l-1.42 1.42M17.66 17.66l-1.42-1.42M7.76 7.76 6.34 6.34"
-                stroke="currentColor"
-                strokeWidth="1.6"
-                strokeLinecap="round"
-            />
-        </svg>
-    )
+    return <img src={config} alt="Config" className={className} />
 }
+
+
 
 export default function navBar({ active, onSelect }: NavBarProps) {
     const [isConnected, setIsConnected] = useState(false)
