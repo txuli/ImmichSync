@@ -1,5 +1,5 @@
 use serde_json::json;
-use std::fs::File;
+use tauri_plugin_log::log;
 pub mod models;
 mod notification;
 pub use models::CheckToken;
@@ -12,13 +12,16 @@ pub use sync::sync_assets;
 use sysinfo::Disks;
 use tauri::AppHandle;
 use tauri::Manager;
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+};
+use tauri::WindowEvent;
 use tauri_plugin_store::StoreExt;
-
 /// Passed by the autostart plugin when the OS launches the app at login,
 /// so we know to keep the window hidden instead of showing it.
 const HIDDEN_ARG: &str = "--hidden";
 
-use tauri::tray::TrayIconBuilder;
 #[tauri::command]
 async fn verify_token(url: &str, token: &str) -> Result<ValidResponse, String> {
     let client = reqwest::Client::new();
@@ -83,17 +86,56 @@ pub fn run() {
             sync_assets
         ])
         .setup(|app| {
-            let tray = TrayIconBuilder::new()
+            let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&quit_i])?;
+            let _tray = TrayIconBuilder::new()
+                .menu(&menu)
+                .show_menu_on_left_click(true)
+                .on_menu_event(|app, event| match event.id.as_ref() {
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {
+                        log::error!("menu item {:?} not handled", event.id);
+                    }
+                })
+                .on_tray_icon_event(|tray, event| match event {
+                    TrayIconEvent::Click {
+                        button: MouseButton::Left,
+                        button_state: MouseButtonState::Up,
+                        ..
+                    } => {
+                        
+                        
+                        let app = tray.app_handle();
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.unminimize();
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    _ => {
+                       
+                    }
+                })
                 .icon(app.default_window_icon().unwrap().clone())
                 .build(app)?;
-
+            
             // The window starts hidden (see tauri.conf.json). Only reveal it
             // unless we were launched by the autostart plugin with --hidden.
             let launched_hidden = std::env::args().any(|arg| arg == HIDDEN_ARG);
-            if !launched_hidden {
-                if let Some(window) = app.get_webview_window("main") {
+            if let Some(window) = app.get_webview_window("main") {
+                if !launched_hidden {
                     window.show()?;
                 }
+
+                let window_handle = window.clone();
+                window.on_window_event(move |event| {
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = window_handle.hide();
+                    }
+                });
             }
 
             let handle = app.handle().clone();
@@ -125,8 +167,16 @@ pub fn run() {
                     old_disks = actual_disks.iter().map(|(name, _)| name.clone()).collect();
                 }
             });
+        
 
             Ok(())
+        })
+        .on_window_event(|window, event| match event {
+            WindowEvent::CloseRequested { api, .. } => {
+                api.prevent_close();
+                window.hide().unwrap();
+            }
+            _ => {}
         })
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
