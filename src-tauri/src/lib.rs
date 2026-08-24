@@ -120,14 +120,22 @@ pub fn run() {
                 })
                 .icon(app.default_window_icon().unwrap().clone())
                 .build(app)?;
-
+            
             // The window starts hidden (see tauri.conf.json). Only reveal it
             // unless we were launched by the autostart plugin with --hidden.
             let launched_hidden = std::env::args().any(|arg| arg == HIDDEN_ARG);
-            if !launched_hidden {
-                if let Some(window) = app.get_webview_window("main") {
+            if let Some(window) = app.get_webview_window("main") {
+                if !launched_hidden {
                     window.show()?;
                 }
+
+                let window_handle = window.clone();
+                window.on_window_event(move |event| {
+                    if let WindowEvent::CloseRequested { api, .. } = event {
+                        api.prevent_close();
+                        let _ = window_handle.hide();
+                    }
+                });
             }
 
             let handle = app.handle().clone();
@@ -159,6 +167,7 @@ pub fn run() {
                     old_disks = actual_disks.iter().map(|(name, _)| name.clone()).collect();
                 }
             });
+        
 
             Ok(())
         })
