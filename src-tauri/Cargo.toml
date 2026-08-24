@@ -1,6 +1,6 @@
 [package]
 name = "immichsync"
-version = "0.1.0"
+version = "0.1.2"
 description = "A desktop application to automatically upload your assets to an Immich server when an external device is connected"
 authors = ["you"]
 edition = "2021"
