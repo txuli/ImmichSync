@@ -80,11 +80,11 @@ export default function navBar({ active, onSelect }: NavBarProps) {
                                     }`}
                             >
                                 <span
-                                    className={`absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full bg-[#5B8DEF] transition-all duration-150 ${isActive ? "opacity-100 scale-y-100" : "opacity-0 scale-y-50"
+                                    className={`absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.75 rounded-full bg-[#5B8DEF] transition-all duration-150 ${isActive ? "opacity-100 scale-y-100" : "opacity-0 scale-y-50"
                                         }`}
                                 />
                                 <Icon
-                                    className={`w-[18px] h-[18px] shrink-0 transition-colors ${isActive ? "text-[#5B8DEF]" : "text-gray-500 group-hover:text-gray-300"
+                                    className={`w-4.5 h-4.5 shrink-0 transition-colors ${isActive ? "text-[#5B8DEF]" : "text-gray-500 group-hover:text-gray-300"
                                         }`}
                                 />
                                 {label}
