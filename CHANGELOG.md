@@ -8,6 +8,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-08-26
+
+### Added
+
+- Manual upload page, reachable from the navbar, to trigger uploads on demand (via the `immich-go` sidecar) without waiting for automatic drive detection.
+- Native dialog plugin integration for the manual upload flow.
+
+### Changed
+
+- Refreshed navbar styling.
+
 ## [0.1.2] - 2026-08-17
 
 ### Changed
@@ -25,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Run-on-startup and self-updating (GitHub Releases + `latest.json` manifest).
 - Config persistence via `tauri-plugin-store`.
 
-[Unreleased]: https://github.com/txuli/ImmichSync/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/txuli/ImmichSync/compare/v0.1.3...HEAD
 [0.1.3]: https://github.com/txuli/ImmichSync/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/txuli/ImmichSync/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/txuli/ImmichSync/releases/tag/v0.1.1
