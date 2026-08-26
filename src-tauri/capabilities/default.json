@@ -10,6 +10,7 @@
     "opener:default",
     "store:default",
     "updater:default",
+    "dialog:default",
     "process:allow-restart",
     "core:window:allow-close",
     "core:window:allow-minimize",
