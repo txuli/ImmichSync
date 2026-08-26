@@ -119,6 +119,7 @@ pub fn notify_new_device(app: &AppHandle, disk_name: &str, mount_point: &std::pa
                         let sync_result = tauri::async_runtime::block_on(crate::sync::sync_assets(
                             app_handle.clone(),
                             path,
+                            None,
                         ));
                         debug_log(format!("sync_assets finished, ok={}", sync_result.is_ok()));
                         match sync_result {

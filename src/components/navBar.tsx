@@ -3,8 +3,11 @@ import { listen } from "@tauri-apps/api/event"
 import logo from "../assets/logo.svg"
 import config from "../assets/config.svg"
 import dashboard from "../assets/dashboard.svg"
-export type View = "dashboard" | "config";
+import upload from "../assets/upload.svg"
+export type View = "dashboard" | "config" | "manualUpload";
+import { load } from '@tauri-apps/plugin-store';
 
+const store = await load('settings.json', { autoSave: true });
 interface NavBarProps {
     active: View;
     onSelect: (view: View) => void;
@@ -19,24 +22,41 @@ function DashboardIcon({ className }: { className?: string }) {
 function ConfigIcon({ className }: { className?: string }) {
     return <img src={config} alt="Config" className={className} />
 }
+function UploadIcon({ className }: { className?: string }) {
+      return <img src={upload} alt="Config" className={className} />
+}
 
 
 
 export default function navBar({ active, onSelect }: NavBarProps) {
     const [isConnected, setIsConnected] = useState(false)
+    const [notifications, setNotifications] = useState(false)
 
     useEffect(() => {
+        async function loadConfig(){
+           const notif = await store.get<{ value: boolean }>('notif')
+           setNotifications(notif?.value ?? false)
+        }
+        loadConfig()
+        // Mantiene el menú sincronizado en caliente cuando Config cambia el valor,
+        // sin necesitar recargar (F5) ni reiniciar la app.
+        const unlistenNotif = store.onKeyChange<{ value: boolean }>('notif', (notif) => {
+            setNotifications(notif?.value ?? false)
+        })
         const unlisten = listen<{ status: string }>("sync-status", (event) => {
             setIsConnected(event.payload.status === "syncing")
         })
+
         return () => {
             unlisten.then((fn) => fn())
+            unlistenNotif.then((fn) => fn())
         }
     }, [])
 
     const items: { view: View; label: string; icon: (props: { className?: string }) => ReactElement }[] = [
         { view: "dashboard", label: "Dashboard", icon: DashboardIcon },
         { view: "config", label: "Config", icon: ConfigIcon },
+        ...(notifications ? [] : [{ view: "manualUpload" as View, label: "Manual upload", icon: UploadIcon }])
     ]
 
     return (
@@ -60,11 +80,11 @@ export default function navBar({ active, onSelect }: NavBarProps) {
                                     }`}
                             >
                                 <span
-                                    className={`absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-full bg-[#5B8DEF] transition-all duration-150 ${isActive ? "opacity-100 scale-y-100" : "opacity-0 scale-y-50"
+                                    className={`absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.75 rounded-full bg-[#5B8DEF] transition-all duration-150 ${isActive ? "opacity-100 scale-y-100" : "opacity-0 scale-y-50"
                                         }`}
                                 />
                                 <Icon
-                                    className={`w-[18px] h-[18px] shrink-0 transition-colors ${isActive ? "text-[#5B8DEF]" : "text-gray-500 group-hover:text-gray-300"
+                                    className={`w-4.5 h-4.5 shrink-0 transition-colors ${isActive ? "text-[#5B8DEF]" : "text-gray-500 group-hover:text-gray-300"
                                         }`}
                                 />
                                 {label}

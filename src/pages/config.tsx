@@ -6,43 +6,41 @@ import Options from "../components/options";
 import { enable, isEnabled, disable } from '@tauri-apps/plugin-autostart';
 import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
-// Notifications / remove-assets settings aren't wired to any backend logic
-// yet (see README) — commented out along with their UI below until they do
-// something, to keep `noUnusedLocals` happy.
-// import { load } from '@tauri-apps/plugin-store';
-// const store = await load('settings.json', { autoSave: true });
+
+import { load } from '@tauri-apps/plugin-store';
+const store = await load('settings.json', { autoSave: true });
 export default function config() {
 
     const [runInBackground, setRunInBackground] = useState(false);
-    // const [notifications, setNotifications] = useState(false);
+    const [notifications, setNotifications] = useState(false);
     // const [removeAssets, setRemoveAssets] = useState(false);
 
     useEffect(() => {
         async function check() {
             setRunInBackground(await isEnabled())
         }
-        /* async function load() {
+         async function load() {
             const notifData = await store.get<{ value: boolean }>('notif');
             setNotifications(notifData?.value ?? false);
-            const rmAssets = await store.get<{ value: boolean }>('rmAssets');
-            setRemoveAssets(rmAssets?.value ?? false)
-        } */
+            /* const rmAssets = await store.get<{ value: boolean }>('rmAssets');
+            setRemoveAssets(rmAssets?.value ?? false) */
+        } 
 
-        /* load() */
+        load() 
         check()
     }, [])
-    /* async function save(type: string, value: boolean) {
+     async function save(type: string, value: boolean) {
         switch (type) {
             case "notif":
                 setNotifications(value)
                 await store.set('notif', { value })
                 break
-            case "removeAssets":
+            /* case "removeAssets":
                 setRemoveAssets(value)
                 await store.set('rmAssets', { value })
-                break
+                break */
         }
-    } */
+    } 
     async function toggle(value: boolean) {
         setRunInBackground(value);
         if (value) await enable()
@@ -163,18 +161,18 @@ export default function config() {
                         description="Allow the app to start automatically when you log in."
                         onChange={toggle}
                     />
-                    {/* <Options
+                     <Options
                         checked={notifications}
                         title="Notifications"
                         description="Receive alerts about upload progress, backup status, and potential errors."
                         onChange={(val) => save('notif', val)}
                     />
-                    <Options
+                    {/* <Options
                         checked={removeAssets}
                         title="Remove Assets from SD Card"
                         description="Automatically delete local files from the SD card after they are successfully uploaded."
                         onChange={(val) => save('removeAssets', val)}
-                    /> */}
+                    />  */}
 
                 </ImmichForm>
                 <ImmichForm>

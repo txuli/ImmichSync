@@ -4,7 +4,7 @@ import NavBar, { type View } from "./components/navBar";
 import TitleBar from "./components/titleBar";
 import Dashboard from "./pages/dashboard";
 import Config from "./pages/config";
-
+import ManualUpload from "./pages/manualUpload";
 function App() {
   const [view, setView] = useState<View>("dashboard");
 
@@ -16,6 +16,7 @@ function App() {
         <div className="flex-1 min-w-0 h-full overflow-auto">
           {view === "dashboard" && <Dashboard />}
           {view === "config" && <Config />}
+          {view === "manualUpload" && <ManualUpload />}
         </div>
       </div>
     </div>
