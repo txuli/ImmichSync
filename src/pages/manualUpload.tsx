@@ -138,7 +138,7 @@ export default function manualUpload() {
                             name="albumName"
                             value={albumName}
                             onChange={(e) => setAlbumName(e.target.value)}
-                            placeholder="ImmichSync - YYYY-MM-DD HH-mm"
+                            placeholder="ImmichSync"
                             className="w-full min-w-0 mt-2"
                         />
 

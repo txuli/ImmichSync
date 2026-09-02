@@ -26,7 +26,7 @@ pub async fn sync_assets(
     let store = app.store("settings.json").map_err(|e| e.to_string())?;
     let album_name = match album {
         Some(name) if !name.is_empty() => name,
-        _ => format!("ImmichSync - {}", Local::now().format("%Y-%m-%d %H-%M")),
+        _ => format!("ImmichSync"),
     };
     crate::notification::new_sync::notify_sync_started(&app, &album_name);
     let url = store

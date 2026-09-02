@@ -34,8 +34,8 @@ pub fn scan(app: AppHandle) {
 
             for (name, mount_point) in &actual_disks {
                 if !old_disks.iter().any(|n| n == name) {
-                    if let Ok(pool) = tauri::async_runtime::block_on(get_pool(&app)) {
-                        match tauri::async_runtime::block_on(check(&pool, name)) {
+                    match tauri::async_runtime::block_on(get_pool(&app)) {
+                        Ok(pool) => match tauri::async_runtime::block_on(check(&pool, name)) {
                             Ok(Some(row)) => {
                                 if row.direct == "true" {
                                     let sync_result =
@@ -63,6 +63,9 @@ pub fn scan(app: AppHandle) {
                             Err(error) => {
                                 eprintln!("Failed to check device {name}: {error:?}");
                             }
+                        },
+                        Err(error) => {
+                            eprintln!("Failed to open immichsync.db for {name}: {error:?}");
                         }
                     }
                 }

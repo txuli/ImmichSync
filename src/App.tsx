@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
+import Database from "@tauri-apps/plugin-sql";
 import "./App.css";
 import NavBar, { type View } from "./components/navBar";
 import TitleBar from "./components/titleBar";
@@ -12,6 +13,13 @@ function App() {
   const [view, setView] = useState<View>("dashboard");
   const [newDeviceName, setNewDeviceName] = useState("");
   const [newDevicePath, setNewDevicePath] = useState("");
+
+  useEffect(() => {
+   
+    Database.load("sqlite:immichsync.db").catch((err) => {
+      console.error("Failed to initialize immichsync.db:", err);
+    });
+  }, []);
 
   useEffect(() => {
     const unlisten = listen<{ diskName: string; mountPoint: string }>(
