@@ -6,7 +6,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (pre-1.0, so minor bumps may include breaking changes).
 
-## [0.2.0]
+## [0.2.1] - 2026-09-02
 
 ### Added
 
@@ -18,6 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `sync_assets` now takes an optional album name, falling back to a dated album (`ImmichSync - YYYY-MM-DD HH-MM`) when none is given.
 - Renamed notification modules for clarity: `known_device` (reconnected, already-configured devices) vs. `new_device` (unrecognized devices) — previously both misleadingly named `newDevice`/`noneDevice`.
+- Manual upload page translated to English.
+
+### Fixed
+
+- The `v0.2.0` release was built before the app's own version number was bumped, so its installer and `latest.json` both reported `0.1.2` — the auto-updater never saw it as newer. `0.2.0` is skipped; this release carries the same changes with the version numbers actually bumped.
 
 ## [0.1.3] - 2026-08-26
 
@@ -47,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Run-on-startup and self-updating (GitHub Releases + `latest.json` manifest).
 - Config persistence via `tauri-plugin-store`.
 
-[Unreleased]: https://github.com/txuli/ImmichSync/compare/v0.1.3...HEAD
+[0.2.1]: https://github.com/txuli/ImmichSync/compare/v0.1.3...v0.2.1
 [0.1.3]: https://github.com/txuli/ImmichSync/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/txuli/ImmichSync/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/txuli/ImmichSync/releases/tag/v0.1.1
