@@ -126,7 +126,6 @@ pub fn notify_known_device(
                         let sync_result = tauri::async_runtime::block_on(crate::sync::sync_assets(
                             app_handle.clone(),
                             path,
-                            Some(album_name),
                         ));
                         debug_log(format!("sync_assets finished, ok={}", sync_result.is_ok()));
                         match sync_result {
