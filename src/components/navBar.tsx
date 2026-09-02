@@ -3,7 +3,7 @@ import { listen } from "@tauri-apps/api/event"
 import logo from "../assets/logo.svg"
 import config from "../assets/config.svg"
 import dashboard from "../assets/dashboard.svg"
-export type View = "dashboard" | "config";
+export type View = "dashboard" | "config" | "newDevice";
 
 interface NavBarProps {
     active: View;
@@ -37,6 +37,7 @@ export default function navBar({ active, onSelect }: NavBarProps) {
     const items: { view: View; label: string; icon: (props: { className?: string }) => ReactElement }[] = [
         { view: "dashboard", label: "Dashboard", icon: DashboardIcon },
         { view: "config", label: "Config", icon: ConfigIcon },
+
     ]
 
     return (

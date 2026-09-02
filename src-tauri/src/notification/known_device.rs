@@ -4,7 +4,7 @@ use tauri::{AppHandle, Emitter, Manager};
 
 /// Broadcasts the "sync-status" event so the dashboard can show live
 /// progress and a recent-activity feed.
-fn emit_sync_status(app: &AppHandle, status: &str, disk_name: &str, error: Option<String>) {
+fn emit_sync_status(app: &AppHandle, status: &str, disk_name: &str,  error: Option<String>) {
     let payload = SyncStatusEvent {
         status: status.to_string(),
         disk_name: disk_name.to_string(),
@@ -90,35 +90,43 @@ fn register_aumid(icon_path: Option<&std::path::Path>) {
 }
 
 #[cfg(windows)]
-pub fn notify_new_device(app: &AppHandle, disk_name: &str, mount_point: &std::path::Path) {
+pub fn notify_known_device(
+    app: &AppHandle,
+    disk_name: &str,
+    mount_point: &std::path::Path,
+    album_name: &str,
+) {
     use tauri_winrt_notification::{Duration, Toast};
 
     let disk_name = disk_name.to_string();
     let mount_point = mount_point.to_path_buf();
+    let album_name = album_name.to_string();
     let app_handle = app.clone();
     let icon_path = app_icon_path(app);
     register_aumid(icon_path.as_deref());
 
     let result = Toast::new(APP_ID)
-        .title("New device detected")
-        .text1(&format!("Connected: {disk_name}"))
+        .title("Device reconnected")
+        .text1(&format!("{disk_name} is back — sync to \"{album_name}\"?"))
         .add_button("Sync", "sync")
         .add_button("Ignore", "ignore")
         .duration(Duration::Short)
         .on_activated(move |action| {
             match action.as_deref() {
                 Some("sync") => {
-                    println!("[notification] Sync pressed for {disk_name}");
+                   
                     debug_log("sync button pressed, starting thread");
                     let app_handle = app_handle.clone();
                     let path = mount_point.to_string_lossy().to_string();
                     let disk_name = disk_name.clone();
+                    let album_name = album_name.clone();
                     std::thread::spawn(move || {
                         emit_sync_status(&app_handle, "syncing", &disk_name, None);
                         debug_log("thread started, calling sync_assets");
                         let sync_result = tauri::async_runtime::block_on(crate::sync::sync_assets(
                             app_handle.clone(),
                             path,
+                            Some(album_name),
                         ));
                         debug_log(format!("sync_assets finished, ok={}", sync_result.is_ok()));
                         match sync_result {
@@ -180,10 +188,11 @@ pub fn upload_failed(error: &str) {
     }
 }
 #[cfg(not(windows))]
-pub fn notify_new_device<R: tauri::Runtime>(
+pub fn notify_known_device<R: tauri::Runtime>(
     app: &AppHandle<R>,
     disk_name: &str,
     _mount_point: &std::path::Path,
+    album_name: &str,
 ) {
     use tauri_plugin_notification::NotificationExt;
 
@@ -192,8 +201,8 @@ pub fn notify_new_device<R: tauri::Runtime>(
     let mut builder = app
         .notification()
         .builder()
-        .title("New device detected")
-        .body(format!("Connected: {disk_name}"));
+        .title("Device reconnected")
+        .body(format!("{disk_name} is back — sync to \"{album_name}\"?"));
 
     if let Some(icon_path) = &icon_path {
         if let Some(icon_path) = icon_path.to_str() {

@@ -10,6 +10,8 @@
     "opener:default",
     "store:default",
     "updater:default",
+    "sql:default",
+    "sql:allow-execute",
     "process:allow-restart",
     "core:window:allow-close",
     "core:window:allow-minimize",

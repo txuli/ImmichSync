@@ -1,2 +1,3 @@
-#[allow(non_snake_case)]
-pub mod newDevice;
+pub mod known_device;
+pub mod new_device;
+pub mod new_sync;
