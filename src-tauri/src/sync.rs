@@ -11,9 +11,24 @@ pub enum SyncError {
 }
 
 #[tauri::command]
-pub async fn sync_assets(app: AppHandle, path: String) -> Result<ValidResponse, String> {
+pub async fn sync_assets(
+    app: AppHandle,
+    path: String,
+    album: Option<String>,
+) -> Result<ValidResponse, String> {
+    if path.trim().is_empty() {
+        return Err("sync_assets called with an empty path".to_string());
+    }
+    if !std::path::Path::new(&path).exists() {
+        return Err(format!("sync_assets: path does not exist: {path}"));
+    }
+
     let store = app.store("settings.json").map_err(|e| e.to_string())?;
-    let album_name = format!("ImmichSync - {}", Local::now().format("%Y-%m-%d %H-%M"));
+    let album_name = match album {
+        Some(name) if !name.is_empty() => name,
+        _ => format!("ImmichSync - {}", Local::now().format("%Y-%m-%d %H-%M")),
+    };
+    crate::notification::new_sync::notify_sync_started(&app, &album_name);
     let url = store
         .get("url")
         .and_then(|v| v.as_str().map(str::to_string))
