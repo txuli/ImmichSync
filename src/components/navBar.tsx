@@ -1,9 +1,11 @@
 import { useEffect, useState, type ReactElement } from "react"
 import { listen } from "@tauri-apps/api/event"
+import { load } from "@tauri-apps/plugin-store"
 import logo from "../assets/logo.svg"
 import config from "../assets/config.svg"
 import dashboard from "../assets/dashboard.svg"
-export type View = "dashboard" | "config";
+import upload from "../assets/upload.svg"
+export type View = "dashboard" | "config" | "manualUpload" | "newDevice";
 
 const store = await load('settings.json', { autoSave: true });
 interface NavBarProps {
@@ -28,7 +30,7 @@ function UploadIcon({ className }: { className?: string }) {
 
 export default function navBar({ active, onSelect }: NavBarProps) {
     const [isConnected, setIsConnected] = useState(false)
-    const [notifications, setNotifications] = useState(false)
+    const [_notifications, setNotifications] = useState(false)
 
     useEffect(() => {
         async function loadConfig(){
@@ -36,8 +38,7 @@ export default function navBar({ active, onSelect }: NavBarProps) {
            setNotifications(notif?.value ?? false)
         }
         loadConfig()
-        // Mantiene el menú sincronizado en caliente cuando Config cambia el valor,
-        // sin necesitar recargar (F5) ni reiniciar la app.
+       
         const unlistenNotif = store.onKeyChange<{ value: boolean }>('notif', (notif) => {
             setNotifications(notif?.value ?? false)
         })
@@ -53,6 +54,7 @@ export default function navBar({ active, onSelect }: NavBarProps) {
 
     const items: { view: View; label: string; icon: (props: { className?: string }) => ReactElement }[] = [
         { view: "dashboard", label: "Dashboard", icon: DashboardIcon },
+        { view: "manualUpload", label: "Manual upload", icon: UploadIcon },
         { view: "config", label: "Config", icon: ConfigIcon },
     ]
 

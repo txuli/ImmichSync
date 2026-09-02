@@ -84,7 +84,7 @@ export default function manualUpload() {
         try {
             await invoke("sync_assets", {
                 path: folderPath,
-                albumName: albumName.trim() || undefined,
+                album: albumName.trim() || undefined,
             });
             setUploadedAlbum(albumName.trim());
             setStatus("success");
@@ -99,7 +99,7 @@ export default function manualUpload() {
             <div className="p-6">
                 <h2 className="text-2xl font-semibold">Manual upload</h2>
                 <p className="text-gray-400 mt-2">
-                    Sube manualmente las fotos de una carpeta a Immich cuando no se detecta un dispositivo automáticamente.
+                    Manually upload the photos from a folder to Immich when a device isn't detected automatically.
                 </p>
             </div>
             <div className="border-t-2 w-full border-t-[#272A31] absolute"></div>
@@ -107,7 +107,7 @@ export default function manualUpload() {
                 <ImmichForm>
                     <form className="my-4 min-w-0" onSubmit={handleUpload}>
                         <label htmlFor="folderPath" className="text-sm font-medium text-gray-300">
-                            Carpeta a subir
+                            Folder to upload
                         </label>
                         <div className="flex gap-2 mt-2">
                             <input
@@ -116,7 +116,7 @@ export default function manualUpload() {
                                 id="folderPath"
                                 value={folderPath}
                                 readOnly
-                                placeholder="Ninguna carpeta seleccionada"
+                                placeholder="No folder selected"
                                 className="flex-1 min-w-0"
                             />
                             <button
@@ -125,12 +125,12 @@ export default function manualUpload() {
                                 className="shrink-0 flex items-center gap-1.5 rounded-md px-3 py-1"
                             >
                                 <FolderIcon />
-                                Seleccionar carpeta
+                                Select folder
                             </button>
                         </div>
 
                         <label htmlFor="albumName" className="block text-sm font-medium text-gray-300 mt-5">
-                            Nombre del álbum <span className="text-gray-500 font-normal">(opcional)</span>
+                            Album name <span className="text-gray-500 font-normal">(optional)</span>
                         </label>
                         <input
                             type="text"
@@ -138,14 +138,14 @@ export default function manualUpload() {
                             name="albumName"
                             value={albumName}
                             onChange={(e) => setAlbumName(e.target.value)}
-                            placeholder="ImmichSync - AAAA-MM-DD HH-mm"
+                            placeholder="ImmichSync - YYYY-MM-DD HH-mm"
                             className="w-full min-w-0 mt-2"
                         />
 
                         <div className="mt-3.5 flex gap-2 bg-[#5B8DEF]/6 border border-[#5B8DEF]/20 rounded-md px-3 py-2.5">
                             <InfoIcon />
                             <p className="text-xs text-gray-400 leading-relaxed">
-                                Si dejas el nombre en blanco, se usará uno generado automáticamente con la fecha y hora actuales.
+                                If you leave this blank, a name will be generated automatically from the current date and time.
                             </p>
                         </div>
 
@@ -155,10 +155,10 @@ export default function manualUpload() {
                                 disabled={!folderPath || status === "uploading"}
                                 className="bg-[#5B8DEF] text-white rounded-md px-5 py-1 disabled:opacity-40 disabled:cursor-not-allowed"
                             >
-                                {status === "uploading" ? "Subiendo…" : "Subir"}
+                                {status === "uploading" ? "Uploading…" : "Upload"}
                             </button>
                             {!folderPath && (
-                                <span className="text-xs text-gray-500">Selecciona una carpeta para continuar</span>
+                                <span className="text-xs text-gray-500">Select a folder to continue</span>
                             )}
                         </div>
 
@@ -166,8 +166,8 @@ export default function manualUpload() {
                             <div className="mt-4 flex items-center gap-2.5 rounded-md border border-[#272A31] bg-[#181B21] px-3.5 py-3">
                                 <SpinnerIcon />
                                 <div>
-                                    <p className="text-[13px] text-gray-200 font-medium">Subiendo a Immich…</p>
-                                    <p className="text-xs text-gray-500 mt-0.5">No cierres la aplicación</p>
+                                    <p className="text-[13px] text-gray-200 font-medium">Uploading to Immich…</p>
+                                    <p className="text-xs text-gray-500 mt-0.5">Don't close the app</p>
                                 </div>
                             </div>
                         )}
@@ -177,8 +177,8 @@ export default function manualUpload() {
                                 <CheckIcon />
                                 <div>
                                     <p className="text-[13px] text-green-400 font-medium">
-                                        Subida completada correctamente
-                                        {uploadedAlbum ? ` a "${uploadedAlbum}"` : ""}.
+                                        Upload completed successfully
+                                        {uploadedAlbum ? ` to "${uploadedAlbum}"` : ""}.
                                     </p>
                                 </div>
                             </div>
@@ -188,7 +188,7 @@ export default function manualUpload() {
                             <div className="mt-4 flex items-start gap-2.5 rounded-md border border-red-500/25 bg-red-500/8 px-3.5 py-3">
                                 <ErrorIcon />
                                 <div>
-                                    <p className="text-[13px] text-red-400 font-medium">Error al subir los archivos</p>
+                                    <p className="text-[13px] text-red-400 font-medium">Failed to upload the files</p>
                                     {error && (
                                         <p className="text-xs text-gray-500 mt-0.5 wrap-break-word">{error}</p>
                                     )}
