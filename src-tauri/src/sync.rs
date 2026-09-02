@@ -11,14 +11,9 @@ pub enum SyncError {
 }
 
 #[tauri::command]
-pub async fn sync_assets(
-    app: AppHandle,
-    path: String,
-    album_name: Option<String>,
-) -> Result<ValidResponse, String> {
+pub async fn sync_assets(app: AppHandle, path: String) -> Result<ValidResponse, String> {
     let store = app.store("settings.json").map_err(|e| e.to_string())?;
-    let album_name = album_name
-        .unwrap_or_else(|| format!("ImmichSync - {}", Local::now().format("%Y-%m-%d %H-%M")));
+    let album_name = format!("ImmichSync - {}", Local::now().format("%Y-%m-%d %H-%M"));
     let url = store
         .get("url")
         .and_then(|v| v.as_str().map(str::to_string))

@@ -3,9 +3,7 @@ import { listen } from "@tauri-apps/api/event"
 import logo from "../assets/logo.svg"
 import config from "../assets/config.svg"
 import dashboard from "../assets/dashboard.svg"
-import upload from "../assets/upload.svg"
-export type View = "dashboard" | "config" | "manualUpload";
-import { load } from '@tauri-apps/plugin-store';
+export type View = "dashboard" | "config";
 
 const store = await load('settings.json', { autoSave: true });
 interface NavBarProps {
@@ -56,7 +54,6 @@ export default function navBar({ active, onSelect }: NavBarProps) {
     const items: { view: View; label: string; icon: (props: { className?: string }) => ReactElement }[] = [
         { view: "dashboard", label: "Dashboard", icon: DashboardIcon },
         { view: "config", label: "Config", icon: ConfigIcon },
-        ...(notifications ? [] : [{ view: "manualUpload" as View, label: "Manual upload", icon: UploadIcon }])
     ]
 
     return (

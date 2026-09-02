@@ -1,22 +1,23 @@
 use serde_json::json;
 use tauri_plugin_log::log;
+pub mod db;
 pub mod models;
 mod notification;
 pub use models::CheckToken;
 pub use models::Settings;
 pub use models::ValidResponse;
 pub mod sync;
-use std::thread;
-use std::time::Duration;
+pub mod scan;
+use scan::scan;
 pub use sync::sync_assets;
-use sysinfo::Disks;
 use tauri::AppHandle;
 use tauri::Manager;
+use tauri::WindowEvent;
 use tauri::{
     menu::{Menu, MenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
-use tauri::WindowEvent;
+use tauri_plugin_sql::{Migration, MigrationKind};
 use tauri_plugin_store::StoreExt;
 /// Passed by the autostart plugin when the OS launches the app at login,
 /// so we know to keep the window hidden instead of showing it.
@@ -68,7 +69,24 @@ async fn save_credentials(app: AppHandle, url: &str, token: &str) -> Result<Vali
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    let migrations = vec![Migration {
+        version: 1,
+        description: "create_initial_tables",
+        sql: "CREATE TABLE devices (id INTEGER PRIMARY KEY, device TEXT,path TEXT, albumName TEXT, direct BOOLEAN);
+              CREATE TABLE stats (id INTEGER PRIMARY KEY, uploadedPhotos NUMBER, uploadedSize NUMBER);
+              CREATE TABLE activity (id INTEGER PRIMARY KEY, device TEXT, uploadedPhotos NUMBER, lastSync TIMESTAMP DEFAULT CURRENT_TIMESTAMP);",
+        kind: MigrationKind::Up,
+    }];
+
+    
+    let database_url = "sqlite:immichsync.db";
+
     tauri::Builder::default()
+        .plugin(
+            tauri_plugin_sql::Builder::new()
+                .add_migrations(database_url, migrations)
+                .build(),
+        )
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_store::Builder::new().build())
@@ -106,8 +124,6 @@ pub fn run() {
                         button_state: MouseButtonState::Up,
                         ..
                     } => {
-                        
-                        
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.unminimize();
@@ -115,13 +131,11 @@ pub fn run() {
                             let _ = window.set_focus();
                         }
                     }
-                    _ => {
-                       
-                    }
+                    _ => {}
                 })
                 .icon(app.default_window_icon().unwrap().clone())
                 .build(app)?;
-            
+
             // The window starts hidden (see tauri.conf.json). Only reveal it
             // unless we were launched by the autostart plugin with --hidden.
             let launched_hidden = std::env::args().any(|arg| arg == HIDDEN_ARG);
@@ -140,35 +154,7 @@ pub fn run() {
             }
 
             let handle = app.handle().clone();
-            thread::spawn(move || {
-                let mut disks = Disks::new_with_refreshed_list();
-                let mut old_disks: Vec<String> = vec![];
-                loop {
-                    thread::sleep(Duration::from_secs(1));
-
-                    let actual_disks: Vec<(String, std::path::PathBuf)> = disks
-                        .list()
-                        .iter()
-                        .filter(|disk| disk.is_removable())
-                        .map(|disk| {
-                            (
-                                disk.name().to_string_lossy().to_string(),
-                                disk.mount_point().to_path_buf(),
-                            )
-                        })
-                        .collect();
-
-                    disks.refresh(true);
-
-                    for (name, mount_point) in &actual_disks {
-                        if !old_disks.iter().any(|n| n == name) {
-                            notification::newDevice::notify_new_device(&handle, name, mount_point);
-                        }
-                    }
-                    old_disks = actual_disks.iter().map(|(name, _)| name.clone()).collect();
-                }
-            });
-        
+            scan(handle);
 
             Ok(())
         })

@@ -102,12 +102,13 @@ pub fn notify_new_device(app: &AppHandle, disk_name: &str, mount_point: &std::pa
     let result = Toast::new(APP_ID)
         .title("New device detected")
         .text1(&format!("Connected: {disk_name}"))
-        .add_button("Sync", "sync")
+        .add_button("Choose album", "new")
+        .add_button("Quick upload", "device")
         .add_button("Ignore", "ignore")
         .duration(Duration::Short)
         .on_activated(move |action| {
             match action.as_deref() {
-                Some("sync") => {
+                Some("device") => {
                     println!("[notification] Sync pressed for {disk_name}");
                     debug_log("sync button pressed, starting thread");
                     let app_handle = app_handle.clone();
@@ -140,6 +141,19 @@ pub fn notify_new_device(app: &AppHandle, disk_name: &str, mount_point: &std::pa
                     });
                 }
                 Some("ignore") => println!("[notification] Ignore pressed for {disk_name}"),
+                Some("new") => {
+                    if let Some(window) = app_handle.get_webview_window("main") {
+                        let _ = window.unminimize();
+                        let _ = window.show();
+                        let _ = window.set_focus();
+                    }
+                    if let Err(err) = app_handle.emit(
+                        "navigate-new-device",
+                        serde_json::json!({ "diskName": disk_name, "mountPoint": mount_point }),
+                    ) {
+                        eprintln!("[notification] Failed to emit navigate-new-device event: {err:?}");
+                    }
+                }
                 _ => {}
             }
             Ok(())
