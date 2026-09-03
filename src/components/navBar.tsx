@@ -5,7 +5,8 @@ import logo from "../assets/logo.svg"
 import config from "../assets/config.svg"
 import dashboard from "../assets/dashboard.svg"
 import upload from "../assets/upload.svg"
-export type View = "dashboard" | "config" | "manualUpload" | "newDevice";
+import device from "../assets/devices.svg"
+export type View = "dashboard" | "config" | "manualUpload" | "newDevice"| "device";
 
 const store = await load('settings.json', { autoSave: true });
 interface NavBarProps {
@@ -26,7 +27,9 @@ function UploadIcon({ className }: { className?: string }) {
       return <img src={upload} alt="Config" className={className} />
 }
 
-
+function DeviceIcon({ className }: { className?: string }) {
+      return <img src={device} alt="Config" className={className} />
+}
 
 export default function navBar({ active, onSelect }: NavBarProps) {
     const [isConnected, setIsConnected] = useState(false)
@@ -56,6 +59,7 @@ export default function navBar({ active, onSelect }: NavBarProps) {
         { view: "dashboard", label: "Dashboard", icon: DashboardIcon },
         { view: "manualUpload", label: "Manual upload", icon: UploadIcon },
         { view: "config", label: "Config", icon: ConfigIcon },
+        { view: "device", label: "Known devices", icon: DeviceIcon },
     ]
 
     return (
