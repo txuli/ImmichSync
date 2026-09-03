@@ -10,7 +10,7 @@ interface NewDeviceProps {
 }
 
 function DriveIcon({ className }: { className?: string }) {
-    
+
     return (
         <svg
             className={className}
@@ -33,7 +33,7 @@ export default function NewDevice({ device, mountPoint, onDone }: NewDeviceProps
     const [direct, setDirect] = useState(false);
     const [albumName, setAlbumName] = useState("");
     const [saving, setSaving] = useState(false);
-
+    const [error, setError]= useState("")
     function toggle(value: boolean) {
         setDirect(value);
     }
@@ -48,11 +48,17 @@ export default function NewDevice({ device, mountPoint, onDone }: NewDeviceProps
                 [device, albumName, direct, mountPoint]
 
             );
-            await invoke<{ valid: boolean; type_acc: string }>("sync_assets", {
-                path: mountPoint,
-                album: albumName,
-            });
-            onDone();
+            try {
+                await invoke<{ valid: boolean; type_acc: string }>("sync_assets", {
+                    path: mountPoint,
+                    album: albumName,
+                })
+                onDone();
+            } catch(error){
+                setError(String(error))
+            }
+            
+           
         } finally {
             setSaving(false);
         }
@@ -111,6 +117,8 @@ export default function NewDevice({ device, mountPoint, onDone }: NewDeviceProps
                             </button>
                         </div>
                     </form>
+                    {error? <p className="text-red-600/65 text-sm">No credentials found. Please set them up</p>:<></>}
+
                 </ImmichForm>
             </div>
         </div>

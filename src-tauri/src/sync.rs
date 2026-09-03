@@ -28,7 +28,7 @@ pub async fn sync_assets(
         Some(name) if !name.is_empty() => name,
         _ => format!("ImmichSync"),
     };
-    crate::notification::new_sync::notify_sync_started(&app, &album_name);
+
     let url = store
         .get("url")
         .and_then(|v| v.as_str().map(str::to_string))
@@ -37,7 +37,7 @@ pub async fn sync_assets(
         .get("token")
         .and_then(|v| v.as_str().map(str::to_string))
         .ok_or_else(|| "missing token in settings".to_string())?;
-
+    crate::notification::new_sync::notify_sync_started(&app, &album_name);
     let sidecar = app
         .shell()
         .sidecar("immich-go")
