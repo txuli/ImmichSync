@@ -19,17 +19,17 @@ export default function config() {
         async function check() {
             setRunInBackground(await isEnabled())
         }
-         async function load() {
+        async function load() {
             const notifData = await store.get<{ value: boolean }>('notif');
             setNotifications(notifData?.value ?? false);
             /* const rmAssets = await store.get<{ value: boolean }>('rmAssets');
             setRemoveAssets(rmAssets?.value ?? false) */
-        } 
+        }
 
-        load() 
+        load()
         check()
     }, [])
-     async function save(type: string, value: boolean) {
+    async function save(type: string, value: boolean) {
         switch (type) {
             case "notif":
                 setNotifications(value)
@@ -40,7 +40,7 @@ export default function config() {
                 await store.set('rmAssets', { value })
                 break */
         }
-    } 
+    }
     async function toggle(value: boolean) {
         setRunInBackground(value);
         if (value) await enable()
@@ -84,7 +84,7 @@ export default function config() {
             setUpdateStatus("error");
         }
     }
-    
+
 
     return (
         <div className="relative h-full bg-[#15171C]">
@@ -107,8 +107,13 @@ export default function config() {
                             e.preventDefault();
                             const url = (document.getElementById('url') as HTMLInputElement).value;
                             const token = (document.getElementById('key') as HTMLInputElement).value;
-                            
-                            invoke('save_credentials', { url, token }).then((res) => setResponse(res as { valid: boolean, type_acc: string }))
+                            if (url === "" || token === "") {
+                                setResponse({ valid: false, type_acc: "empty" })
+                            } else {
+                                invoke('save_credentials', { url, token }).then((res) => setResponse(res as { valid: boolean, type_acc: string }))
+                            }
+
+
                         }}
                     >
                         <label htmlFor="url"> Immich  URL</label>
@@ -120,9 +125,14 @@ export default function config() {
                                 e.preventDefault();
                                 const url = (document.getElementById('url') as HTMLInputElement).value;
                                 const token = (document.getElementById('key') as HTMLInputElement).value;
-                                if (url=== "" || token==="") setResponse({valid:false, type_acc: "empty"})
-                                invoke('verify_token', { url, token }).then((res) => setResponse(res as { valid: boolean, type_acc: string }))
-                                
+
+                                if (url === "" || token === "") {
+                                    setResponse({ valid: false, type_acc: "empty" })
+                                } else {
+                                    invoke('verify_token', { url, token }).then((res) => setResponse(res as { valid: boolean, type_acc: string }))
+                                }
+
+
                             }}> test connection </button>
                             <div className="flex flex-wrap items-center gap-4">
                                 <button type="submit" className="bg-[#5B8DEF] text-white rounded-md px-3 py-1">
@@ -153,7 +163,7 @@ export default function config() {
                                 )}
                                 {response && !response.valid && response.type_acc == "empty" && (
                                     <p className="text-red-500">
-                                        Please fill url a.
+                                        Please fill url and token fields.
                                     </p>
                                 )}
                             </div>
@@ -169,7 +179,7 @@ export default function config() {
                         description="Allow the app to start automatically when you log in."
                         onChange={toggle}
                     />
-                     <Options
+                    <Options
                         checked={notifications}
                         title="Notifications"
                         description="Receive alerts about upload progress, backup status, and potential errors."
