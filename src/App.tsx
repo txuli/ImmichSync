@@ -8,7 +8,7 @@ import Dashboard from "./pages/dashboard";
 import Config from "./pages/config";
 import ManualUpload from "./pages/manualUpload";
 import NewDevice from "./pages/newDevice";
-
+import Decices from "./pages/devices";
 function App() {
   const [view, setView] = useState<View>("dashboard");
   const [newDeviceName, setNewDeviceName] = useState("");
@@ -51,6 +51,7 @@ function App() {
               onDone={() => setView("dashboard")}
             />
           )}
+          {view === "device" && <Decices />}
         </div>
       </div>
     </div>
