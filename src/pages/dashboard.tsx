@@ -88,12 +88,12 @@ export default function dashboard() {
                 <div className="bg-[#20232B] rounded-md border border-[#272A31] p-4">
                     <div className="flex items-center justify-between">
                         <h3 className="text-sm font-medium text-gray-200">Server connection</h3>
-                        <button
+                       {/*  <button
                             onClick={checkConnection}
                             className="text-xs text-gray-400 hover:text-white transition-colors"
                         >
                             Recheck
-                        </button>
+                        </button> */}
                     </div>
                     <div className={`flex items-center gap-2 mt-3 text-sm ${connectionBadge.color}`}>
                         <StatusDot on={connectionBadge.dot} />

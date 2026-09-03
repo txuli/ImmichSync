@@ -145,7 +145,7 @@ export default function manualUpload() {
                         <div className="mt-3.5 flex gap-2 bg-[#5B8DEF]/6 border border-[#5B8DEF]/20 rounded-md px-3 py-2.5">
                             <InfoIcon />
                             <p className="text-xs text-gray-400 leading-relaxed">
-                                If you leave this blank, a name will be generated automatically from the current date and time.
+                                If you leave this blank, a name will be generated an immichSync album automatically.
                             </p>
                         </div>
 

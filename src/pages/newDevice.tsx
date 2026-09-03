@@ -34,7 +34,7 @@ export default function NewDevice({ device, mountPoint, onDone }: NewDeviceProps
     const [direct, setDirect] = useState(false);
     const [albumName, setAlbumName] = useState("");
     const [saving, setSaving] = useState(false);
-    const [error, setError]= useState("")
+    const [error, setError] = useState("")
     function toggle(value: boolean) {
         setDirect(value);
     }
@@ -55,11 +55,11 @@ export default function NewDevice({ device, mountPoint, onDone }: NewDeviceProps
                     album: albumName,
                 })
                 onDone();
-            } catch(error){
+            } catch (error) {
                 setError(String(error))
             }
-            
-           
+
+
         } finally {
             setSaving(false);
         }
@@ -102,8 +102,8 @@ export default function NewDevice({ device, mountPoint, onDone }: NewDeviceProps
                         <div className="pt-2">
                             <Options
                                 checked={direct}
-                                title="Upload assets without asking"
-                                description="Upload the assets directly to your server whenever this device connects"
+                                title="Automatic Sync"
+                                description="Sync this drive automatically to immich."
                                 onChange={toggle}
                             />
                         </div>
@@ -118,7 +118,7 @@ export default function NewDevice({ device, mountPoint, onDone }: NewDeviceProps
                             </button>
                         </div>
                     </form>
-                    {error? <p className="text-red-600/65 text-sm">No credentials found. Please set them up</p>:<></>}
+                    {error ? <p className="text-red-600/65 text-sm">No credentials found. Please set them up</p> : <></>}
 
                 </ImmichForm>
             </div>

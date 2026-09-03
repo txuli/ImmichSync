@@ -64,6 +64,17 @@ pub async fn sync_assets(
         return Err(String::from_utf8_lossy(&output.stderr).to_string());
     }
 
+    let remove_after_upload = store
+        .get("rmAssets")
+        .and_then(|v| v.get("value").and_then(|b| b.as_bool()))
+        .unwrap_or(false);
+
+    if remove_after_upload {
+        if let Err(err) = delete_media_files(&path) {
+            eprintln!("[sync] Failed to remove uploaded assets from {path}: {err}");
+        }
+    }
+
     Ok(ValidResponse {
         valid: true,
         type_acc: "sync".to_string(),
@@ -112,4 +123,47 @@ pub fn scan_media_stats(path: &str) -> (i64, i64) {
     }
 
     (count, size)
+}
+
+/// Deletes every media file found under `path` (same extension list as
+/// `scan_media_stats`). Only called after immich-go has confirmed the
+/// upload succeeded, and only when the user enabled "remove assets after
+/// upload". Subdirectories are walked but left in place — only files are
+/// removed.
+fn delete_media_files(path: &str) -> Result<(), String> {
+    let mut stack = vec![std::path::PathBuf::from(path)];
+    let mut errors = Vec::new();
+
+    while let Some(dir) = stack.pop() {
+        let entries = match std::fs::read_dir(&dir) {
+            Ok(entries) => entries,
+            Err(err) => {
+                errors.push(format!("{}: {err}", dir.display()));
+                continue;
+            }
+        };
+        for entry in entries.flatten() {
+            let entry_path = entry.path();
+            if entry_path.is_dir() {
+                stack.push(entry_path);
+                continue;
+            }
+            let is_media = entry_path
+                .extension()
+                .and_then(|ext| ext.to_str())
+                .map(|ext| MEDIA_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
+                .unwrap_or(false);
+            if is_media {
+                if let Err(err) = std::fs::remove_file(&entry_path) {
+                    errors.push(format!("{}: {err}", entry_path.display()));
+                }
+            }
+        }
+    }
+
+    if errors.is_empty() {
+        Ok(())
+    } else {
+        Err(errors.join("; "))
+    }
 }

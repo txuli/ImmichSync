@@ -10,6 +10,7 @@ import ManualUpload from "./pages/manualUpload";
 import NewDevice from "./pages/newDevice";
 import Decices from "./pages/devices";
 import { useSyncStore } from "./store/syncStore";
+import { useUpdateStore } from "./store/updateStore";
 import type { View, NewDeviceNavigationPayload } from "./types";
 function App() {
   const [view, setView] = useState<View>("dashboard");
@@ -25,6 +26,10 @@ function App() {
     // Starts the single shared subscription to sync-status; NavBar and
     // Dashboard just read from useSyncStore from here on.
     useSyncStore.getState().init();
+
+    // Silently checks for a new version on startup; the result shows up on
+    // the Config page whenever the user visits it.
+    useUpdateStore.getState().init();
   }, []);
 
   useEffect(() => {

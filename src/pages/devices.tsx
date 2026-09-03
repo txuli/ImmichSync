@@ -86,8 +86,8 @@ export default function decices() {
                         <div className="[&>div]:py-2">
                             <Options
                                 checked={!!d.direct}
-                                title="Direct upload"
-                                description="Upload assets automatically whenever this device connects"
+                                title="Automatic Sync"
+                                description="Sync this drive automatically to immich."
                                 onChange={() => { }}
                             />
                         </div>

@@ -131,6 +131,9 @@ pub fn notify_known_device(
                     let album_name = album_name.clone();
                     std::thread::spawn(move || {
                         emit_sync_status(&app_handle, "syncing", &disk_name, None, 0, 0);
+                        // Snapshot the media count/size before syncing — sync_assets may
+                        // delete these files afterward if "remove assets after upload" is on.
+                        let (uploaded_photos, uploaded_size) = crate::sync::scan_media_stats(&path);
                         debug_log("thread started, calling sync_assets");
                         let sync_result = tauri::async_runtime::block_on(crate::sync::sync_assets(
                             app_handle.clone(),
@@ -142,8 +145,6 @@ pub fn notify_known_device(
                             Ok(_) => {
                                 debug_log("calling upload_success");
                                 upload_success();
-                                let (uploaded_photos, uploaded_size) =
-                                    crate::sync::scan_media_stats(&path);
                                 emit_sync_status(
                                     &app_handle,
                                     "success",
