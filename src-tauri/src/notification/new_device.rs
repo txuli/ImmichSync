@@ -4,12 +4,21 @@ use tauri::{AppHandle, Emitter, Manager};
 
 /// Broadcasts the "sync-status" event so the dashboard can show live
 /// progress and a recent-activity feed.
-fn emit_sync_status(app: &AppHandle, status: &str, disk_name: &str, error: Option<String>) {
+fn emit_sync_status(
+    app: &AppHandle,
+    status: &str,
+    disk_name: &str,
+    error: Option<String>,
+    uploaded_photos: i64,
+    uploaded_size: i64,
+) {
     let payload = SyncStatusEvent {
         status: status.to_string(),
         disk_name: disk_name.to_string(),
         error,
         timestamp: chrono::Local::now().to_rfc3339(),
+        uploaded_photos,
+        uploaded_size,
     };
     if let Err(err) = app.emit("sync-status", payload) {
         eprintln!("[notification] Failed to emit sync-status event: {err:?}");
@@ -115,11 +124,11 @@ pub fn notify_new_device(app: &AppHandle, disk_name: &str, mount_point: &std::pa
                     let path = mount_point.to_string_lossy().to_string();
                     let disk_name = disk_name.clone();
                     std::thread::spawn(move || {
-                        emit_sync_status(&app_handle, "syncing", &disk_name, None);
+                        emit_sync_status(&app_handle, "syncing", &disk_name, None, 0, 0);
                         debug_log("thread started, calling sync_assets");
                         let sync_result = tauri::async_runtime::block_on(crate::sync::sync_assets(
                             app_handle.clone(),
-                            path,
+                            path.clone(),
                             None,
                         ));
                         debug_log(format!("sync_assets finished, ok={}", sync_result.is_ok()));
@@ -127,14 +136,23 @@ pub fn notify_new_device(app: &AppHandle, disk_name: &str, mount_point: &std::pa
                             Ok(_) => {
                                 debug_log("calling upload_success");
                                 upload_success();
-                                emit_sync_status(&app_handle, "success", &disk_name, None);
+                                let (uploaded_photos, uploaded_size) =
+                                    crate::sync::scan_media_stats(&path);
+                                emit_sync_status(
+                                    &app_handle,
+                                    "success",
+                                    &disk_name,
+                                    None,
+                                    uploaded_photos,
+                                    uploaded_size,
+                                );
                                 debug_log("upload_success finished");
                             }
                             Err(err) => {
                                 eprintln!("[sync] Sync failed: {err}");
                                 debug_log(format!("calling upload_failed: {err}"));
                                 upload_failed(&err);
-                                emit_sync_status(&app_handle, "error", &disk_name, Some(err));
+                                emit_sync_status(&app_handle, "error", &disk_name, Some(err), 0, 0);
                                 debug_log("upload_failed finished");
                             }
                         }

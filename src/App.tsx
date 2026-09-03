@@ -2,27 +2,33 @@ import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import Database from "@tauri-apps/plugin-sql";
 import "./App.css";
-import NavBar, { type View } from "./components/navBar";
+import NavBar from "./components/navBar";
 import TitleBar from "./components/titleBar";
 import Dashboard from "./pages/dashboard";
 import Config from "./pages/config";
 import ManualUpload from "./pages/manualUpload";
 import NewDevice from "./pages/newDevice";
-
+import Decices from "./pages/devices";
+import { useSyncStore } from "./store/syncStore";
+import type { View, NewDeviceNavigationPayload } from "./types";
 function App() {
   const [view, setView] = useState<View>("dashboard");
   const [newDeviceName, setNewDeviceName] = useState("");
   const [newDevicePath, setNewDevicePath] = useState("");
 
   useEffect(() => {
-   
+
     Database.load("sqlite:immichsync.db").catch((err) => {
       console.error("Failed to initialize immichsync.db:", err);
     });
+
+    // Starts the single shared subscription to sync-status; NavBar and
+    // Dashboard just read from useSyncStore from here on.
+    useSyncStore.getState().init();
   }, []);
 
   useEffect(() => {
-    const unlisten = listen<{ diskName: string; mountPoint: string }>(
+    const unlisten = listen<NewDeviceNavigationPayload>(
       "navigate-new-device",
       (event) => {
         setNewDeviceName(event.payload.diskName);
@@ -51,6 +57,7 @@ function App() {
               onDone={() => setView("dashboard")}
             />
           )}
+          {view === "device" && <Decices />}
         </div>
       </div>
     </div>

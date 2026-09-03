@@ -8,6 +8,7 @@ import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 
 import { load } from '@tauri-apps/plugin-store';
+import type { ValidResponse, StoredFlag } from '../types';
 const store = await load('settings.json', { autoSave: true });
 export default function config() {
 
@@ -19,17 +20,17 @@ export default function config() {
         async function check() {
             setRunInBackground(await isEnabled())
         }
-         async function load() {
-            const notifData = await store.get<{ value: boolean }>('notif');
+        async function load() {
+            const notifData = await store.get<StoredFlag>('notif');
             setNotifications(notifData?.value ?? false);
-            /* const rmAssets = await store.get<{ value: boolean }>('rmAssets');
+            /* const rmAssets = await store.get<StoredFlag>('rmAssets');
             setRemoveAssets(rmAssets?.value ?? false) */
-        } 
+        }
 
-        load() 
+        load()
         check()
     }, [])
-     async function save(type: string, value: boolean) {
+    async function save(type: string, value: boolean) {
         switch (type) {
             case "notif":
                 setNotifications(value)
@@ -40,13 +41,13 @@ export default function config() {
                 await store.set('rmAssets', { value })
                 break */
         }
-    } 
+    }
     async function toggle(value: boolean) {
         setRunInBackground(value);
         if (value) await enable()
         else await disable();
     }
-    const [response, setResponse] = useState<{ valid: boolean, type_acc: string } | null>(null);
+    const [response, setResponse] = useState<ValidResponse | null>(null);
 
     type UpdateStatus = "idle" | "checking" | "available" | "up-to-date" | "installing" | "error";
     const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
@@ -85,6 +86,7 @@ export default function config() {
         }
     }
 
+
     return (
         <div className="relative h-full bg-[#15171C]">
             <div className="p-6  ">
@@ -106,7 +108,13 @@ export default function config() {
                             e.preventDefault();
                             const url = (document.getElementById('url') as HTMLInputElement).value;
                             const token = (document.getElementById('key') as HTMLInputElement).value;
-                            invoke('save_credentials', { url, token }).then((res) => setResponse(res as { valid: boolean, type_acc: string }))
+                            if (url === "" || token === "") {
+                                setResponse({ valid: false, type_acc: "empty" })
+                            } else {
+                                invoke('save_credentials', { url, token }).then((res) => setResponse(res as ValidResponse))
+                            }
+
+
                         }}
                     >
                         <label htmlFor="url"> Immich  URL</label>
@@ -118,7 +126,13 @@ export default function config() {
                                 e.preventDefault();
                                 const url = (document.getElementById('url') as HTMLInputElement).value;
                                 const token = (document.getElementById('key') as HTMLInputElement).value;
-                                invoke('verify_token', { url, token }).then((res) => setResponse(res as { valid: boolean, type_acc: string }))
+
+                                if (url === "" || token === "") {
+                                    setResponse({ valid: false, type_acc: "empty" })
+                                } else {
+                                    invoke('verify_token', { url, token }).then((res) => setResponse(res as ValidResponse))
+                                }
+
 
                             }}> test connection </button>
                             <div className="flex flex-wrap items-center gap-4">
@@ -148,6 +162,11 @@ export default function config() {
                                         Failed to save settings.
                                     </p>
                                 )}
+                                {response && !response.valid && response.type_acc == "empty" && (
+                                    <p className="text-red-500">
+                                        Please fill url and token fields.
+                                    </p>
+                                )}
                             </div>
                         </div>
 
@@ -161,7 +180,7 @@ export default function config() {
                         description="Allow the app to start automatically when you log in."
                         onChange={toggle}
                     />
-                     <Options
+                    <Options
                         checked={notifications}
                         title="Notifications"
                         description="Receive alerts about upload progress, backup status, and potential errors."

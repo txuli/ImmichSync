@@ -69,14 +69,23 @@ async fn save_credentials(app: AppHandle, url: &str, token: &str) -> Result<Vali
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    let migrations = vec![Migration {
-        version: 1,
-        description: "create_initial_tables",
-        sql: "CREATE TABLE devices (id INTEGER PRIMARY KEY, device TEXT,path TEXT, albumName TEXT, direct BOOLEAN);
+    let migrations = vec![
+        Migration {
+            version: 1,
+            description: "create_initial_tables",
+            sql: "CREATE TABLE devices (id INTEGER PRIMARY KEY, device TEXT,path TEXT, albumName TEXT, direct BOOLEAN);
               CREATE TABLE stats (id INTEGER PRIMARY KEY, uploadedPhotos NUMBER, uploadedSize NUMBER);
               CREATE TABLE activity (id INTEGER PRIMARY KEY, device TEXT, uploadedPhotos NUMBER, lastSync TIMESTAMP DEFAULT CURRENT_TIMESTAMP);",
-        kind: MigrationKind::Up,
-    }];
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 2,
+            description: "add_activity_status_and_error",
+            sql: "ALTER TABLE activity ADD COLUMN status TEXT NOT NULL DEFAULT 'success';
+              ALTER TABLE activity ADD COLUMN error TEXT;",
+            kind: MigrationKind::Up,
+        },
+    ];
 
     
     let database_url = "sqlite:immichsync.db";
