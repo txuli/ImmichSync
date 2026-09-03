@@ -84,6 +84,7 @@ export default function config() {
             setUpdateStatus("error");
         }
     }
+    
 
     return (
         <div className="relative h-full bg-[#15171C]">
@@ -106,6 +107,7 @@ export default function config() {
                             e.preventDefault();
                             const url = (document.getElementById('url') as HTMLInputElement).value;
                             const token = (document.getElementById('key') as HTMLInputElement).value;
+                            
                             invoke('save_credentials', { url, token }).then((res) => setResponse(res as { valid: boolean, type_acc: string }))
                         }}
                     >
@@ -118,8 +120,9 @@ export default function config() {
                                 e.preventDefault();
                                 const url = (document.getElementById('url') as HTMLInputElement).value;
                                 const token = (document.getElementById('key') as HTMLInputElement).value;
+                                if (url=== "" || token==="") setResponse({valid:false, type_acc: "empty"})
                                 invoke('verify_token', { url, token }).then((res) => setResponse(res as { valid: boolean, type_acc: string }))
-
+                                
                             }}> test connection </button>
                             <div className="flex flex-wrap items-center gap-4">
                                 <button type="submit" className="bg-[#5B8DEF] text-white rounded-md px-3 py-1">
@@ -146,6 +149,11 @@ export default function config() {
                                 {response && !response.valid && response.type_acc == "save" && (
                                     <p className="text-red-500">
                                         Failed to save settings.
+                                    </p>
+                                )}
+                                {response && !response.valid && response.type_acc == "empty" && (
+                                    <p className="text-red-500">
+                                        Please fill url a.
                                     </p>
                                 )}
                             </div>
