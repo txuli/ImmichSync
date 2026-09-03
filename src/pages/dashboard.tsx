@@ -1,19 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { load } from "@tauri-apps/plugin-store";
 import { isEnabled as isAutostartEnabled } from "@tauri-apps/plugin-autostart";
+import { useSyncStore } from "../store/syncStore";
+import type { ValidResponse, StoredFlag } from "../types";
 
 const store = await load("settings.json", { autoSave: true });
-
-type SyncStatus = "syncing" | "success" | "error";
-
-interface SyncStatusEvent {
-    status: SyncStatus;
-    disk_name: string;
-    error?: string | null;
-    timestamp: string;
-}
 
 type ConnectionState = "checking" | "connected" | "disconnected" | "unset";
 
@@ -34,10 +26,10 @@ function StatusDot({ on }: { on: boolean }) {
 }
 
 export default function dashboard() {
+    const current = useSyncStore((s) => s.current);
+    const history = useSyncStore((s) => s.history);
     const [connection, setConnection] = useState<ConnectionState>("checking");
     const [serverUrl, setServerUrl] = useState<string | null>(null);
-    const [current, setCurrent] = useState<SyncStatusEvent | null>(null);
-    const [history, setHistory] = useState<SyncStatusEvent[]>([]);
     const [autostart, setAutostart] = useState(false);
     const [notifications, setNotifications] = useState(false);
     const [removeAssets, setRemoveAssets] = useState(false);
@@ -53,7 +45,7 @@ export default function dashboard() {
         setServerUrl(url);
         setConnection("checking");
         try {
-            const res = await invoke<{ valid: boolean }>("verify_token", { url, token });
+            const res = await invoke<ValidResponse>("verify_token", { url, token });
             setConnection(res.valid ? "connected" : "disconnected");
         } catch {
             setConnection("disconnected");
@@ -65,26 +57,20 @@ export default function dashboard() {
 
         (async () => {
             setAutostart(await isAutostartEnabled());
-            const notifData = await store.get<{ value: boolean }>("notif");
+            const notifData = await store.get<StoredFlag>("notif");
             setNotifications(notifData?.value ?? false);
-            const rmAssets = await store.get<{ value: boolean }>("rmAssets");
+            const rmAssets = await store.get<StoredFlag>("rmAssets");
             setRemoveAssets(rmAssets?.value ?? false);
         })();
-
-        const unlisten = listen<SyncStatusEvent>("sync-status", (event) => {
-            setCurrent(event.payload);
-            if (event.payload.status !== "syncing") {
-                setHistory((prev) => [event.payload, ...prev].slice(0, 8));
-            }
-            if (event.payload.status === "success") {
-                checkConnection();
-            }
-        });
-
-        return () => {
-            unlisten.then((fn) => fn());
-        };
     }, [checkConnection]);
+
+    // current comes from the shared sync store (see App.tsx / syncStore.ts) —
+    // recheck the server connection whenever a sync just finished successfully.
+    useEffect(() => {
+        if (current?.status === "success") {
+            checkConnection();
+        }
+    }, [current, checkConnection]);
 
     const connectionBadge = {
         checking: { label: "Checking…", color: "text-gray-400", dot: false },
@@ -142,7 +128,7 @@ export default function dashboard() {
                     {current?.status === "error" && (
                         <div className="mt-3 text-sm text-red-500">
                             Failed to sync {current.disk_name}
-                            <p className="text-xs text-gray-500 mt-1 break-words">
+                            <p className="text-xs text-gray-500 mt-1 wrap-break-words">
                                 {current.error}
                             </p>
                         </div>
@@ -180,6 +166,11 @@ export default function dashboard() {
                             <div className="flex items-center gap-3 shrink-0">
                                 {entry.status === "error" && (
                                     <span className="text-red-500 text-xs">failed</span>
+                                )}
+                                {entry.status === "success" && entry.uploaded_photos > 0 && (
+                                    <span className="text-gray-500 text-xs">
+                                        {entry.uploaded_photos} photo{entry.uploaded_photos === 1 ? "" : "s"}
+                                    </span>
                                 )}
                                 <span className="text-gray-500 text-xs">
                                     {formatTime(entry.timestamp)}

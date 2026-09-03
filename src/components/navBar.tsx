@@ -1,13 +1,12 @@
 import { useEffect, useState, type ReactElement } from "react"
-import { listen } from "@tauri-apps/api/event"
 import { load } from "@tauri-apps/plugin-store"
 import logo from "../assets/logo.svg"
 import config from "../assets/config.svg"
 import dashboard from "../assets/dashboard.svg"
 import upload from "../assets/upload.svg"
 import device from "../assets/devices.svg"
-export type View = "dashboard" | "config" | "manualUpload" | "newDevice"| "device";
-
+import { useSyncStore } from "../store/syncStore"
+import type { View, StoredFlag } from "../types"
 const store = await load('settings.json', { autoSave: true });
 interface NavBarProps {
     active: View;
@@ -32,25 +31,21 @@ function DeviceIcon({ className }: { className?: string }) {
 }
 
 export default function navBar({ active, onSelect }: NavBarProps) {
-    const [isConnected, setIsConnected] = useState(false)
+    const isConnected = useSyncStore((s) => s.isConnected)
     const [_notifications, setNotifications] = useState(false)
 
     useEffect(() => {
         async function loadConfig(){
-           const notif = await store.get<{ value: boolean }>('notif')
+           const notif = await store.get<StoredFlag>('notif')
            setNotifications(notif?.value ?? false)
         }
         loadConfig()
-       
-        const unlistenNotif = store.onKeyChange<{ value: boolean }>('notif', (notif) => {
+
+        const unlistenNotif = store.onKeyChange<StoredFlag>('notif', (notif) => {
             setNotifications(notif?.value ?? false)
-        })
-        const unlisten = listen<{ status: string }>("sync-status", (event) => {
-            setIsConnected(event.payload.status === "syncing")
         })
 
         return () => {
-            unlisten.then((fn) => fn())
             unlistenNotif.then((fn) => fn())
         }
     }, [])

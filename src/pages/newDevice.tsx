@@ -3,6 +3,7 @@ import Options from "../components/options";
 import { useState, type SyntheticEvent } from "react";
 import Database from '@tauri-apps/plugin-sql';
 import { invoke } from "@tauri-apps/api/core";
+import type { ValidResponse } from "../types";
 interface NewDeviceProps {
     device: string;
     mountPoint: string;
@@ -49,7 +50,7 @@ export default function NewDevice({ device, mountPoint, onDone }: NewDeviceProps
 
             );
             try {
-                await invoke<{ valid: boolean; type_acc: string }>("sync_assets", {
+                await invoke<ValidResponse>("sync_assets", {
                     path: mountPoint,
                     album: albumName,
                 })

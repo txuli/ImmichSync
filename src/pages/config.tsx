@@ -8,6 +8,7 @@ import { check } from '@tauri-apps/plugin-updater';
 import { relaunch } from '@tauri-apps/plugin-process';
 
 import { load } from '@tauri-apps/plugin-store';
+import type { ValidResponse, StoredFlag } from '../types';
 const store = await load('settings.json', { autoSave: true });
 export default function config() {
 
@@ -20,9 +21,9 @@ export default function config() {
             setRunInBackground(await isEnabled())
         }
         async function load() {
-            const notifData = await store.get<{ value: boolean }>('notif');
+            const notifData = await store.get<StoredFlag>('notif');
             setNotifications(notifData?.value ?? false);
-            /* const rmAssets = await store.get<{ value: boolean }>('rmAssets');
+            /* const rmAssets = await store.get<StoredFlag>('rmAssets');
             setRemoveAssets(rmAssets?.value ?? false) */
         }
 
@@ -46,7 +47,7 @@ export default function config() {
         if (value) await enable()
         else await disable();
     }
-    const [response, setResponse] = useState<{ valid: boolean, type_acc: string } | null>(null);
+    const [response, setResponse] = useState<ValidResponse | null>(null);
 
     type UpdateStatus = "idle" | "checking" | "available" | "up-to-date" | "installing" | "error";
     const [updateStatus, setUpdateStatus] = useState<UpdateStatus>("idle");
@@ -110,7 +111,7 @@ export default function config() {
                             if (url === "" || token === "") {
                                 setResponse({ valid: false, type_acc: "empty" })
                             } else {
-                                invoke('save_credentials', { url, token }).then((res) => setResponse(res as { valid: boolean, type_acc: string }))
+                                invoke('save_credentials', { url, token }).then((res) => setResponse(res as ValidResponse))
                             }
 
 
@@ -129,7 +130,7 @@ export default function config() {
                                 if (url === "" || token === "") {
                                     setResponse({ valid: false, type_acc: "empty" })
                                 } else {
-                                    invoke('verify_token', { url, token }).then((res) => setResponse(res as { valid: boolean, type_acc: string }))
+                                    invoke('verify_token', { url, token }).then((res) => setResponse(res as ValidResponse))
                                 }
 
 

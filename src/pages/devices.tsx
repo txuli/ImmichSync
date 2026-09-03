@@ -3,14 +3,7 @@ import { useEffect, useState } from 'react';
 import ImmichForm from '../components/ImmichForm';
 import Options from '../components/options';
 import device from '../assets/devices.svg';
-
-interface DbDevice {
-    id: number,
-    device: string,
-    path: string,
-    albumName: string,
-    direct: boolean
-}
+import type { DbDevice } from '../types';
 
 function DeviceIcon({ className }: { className?: string }) {
     return <img src={device} alt="Device" className={className} />

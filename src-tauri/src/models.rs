@@ -22,4 +22,9 @@ pub struct SyncStatusEvent {
     pub disk_name: String,
     pub error: Option<String>,
     pub timestamp: String,
+    /// Best-effort count of media files found in the synced folder.
+    /// Only meaningful when `status` is "success"; 0 otherwise.
+    pub uploaded_photos: i64,
+    /// Combined size in bytes of those media files.
+    pub uploaded_size: i64,
 }
