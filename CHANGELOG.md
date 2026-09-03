@@ -6,6 +6,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (pre-1.0, so minor bumps may include breaking changes).
 
+## [1.0.0] - 2026-09-03
+
+### Added
+
+- Known devices page now lists every device actually saved in SQLite (was a static mock row) with an editable album name, a "Direct upload" toggle, and a Remove button that deletes the device from the database.
+- Sync history and upload totals are now persisted: every finished sync (success or error) is written to the `activity` table and successful uploads fold into running totals in `stats`, so the Dashboard's "Recent activity" feed survives app restarts instead of resetting on every launch.
+- "Remove Assets from SD Card" is now wired up end to end: once enabled, `sync_assets` deletes the uploaded media files from the device folder after immich-go confirms the upload succeeded.
+- The Immich credentials section on the Config page shows a connected/disconnected status card (checkmark, warning, or spinner) once configured, with an Edit/Cancel flow instead of an always-open form.
+- The Immich URL field validates in real time against a regex and shows a checkmark or a red border/message — trailing slashes are rejected.
+- The app checks for available updates automatically on startup, instead of only when the Config page's "Check for updates" button is pressed.
+
+### Changed
+
+- Sync status (connection indicator, current sync, history) and the update-check result now live in shared Zustand stores (`store/syncStore.ts`, `store/updateStore.ts`) instead of being duplicated across separate `listen("sync-status", ...)` subscriptions in `navBar.tsx` and `dashboard.tsx`.
+- Saving Immich credentials now verifies the connection first and only saves if it succeeds; the separate "Test connection" button was removed.
+- Shared TypeScript types (`ValidResponse`, `SyncStatusEvent`, `StoredFlag`, `View`, `DbDevice`, ...) moved out of individual components into `src/types/`, replacing several duplicated inline type literals.
+- Known devices, Config, and Manual upload pages restyled to match the rest of the app's dark theme and shared components (`ImmichForm`, `Options`, device icon).
+
+### Fixed
+
+- The `devices` table's album column is named `albumName` in SQLite, but the known-devices list read it as `album_name`, so the album field always showed empty.
+
 ## [0.2.2] - 2026-09-02
 
 ### Fixed
@@ -64,6 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Run-on-startup and self-updating (GitHub Releases + `latest.json` manifest).
 - Config persistence via `tauri-plugin-store`.
 
+[1.0.0]: https://github.com/txuli/ImmichSync/compare/v0.2.2...v1.0.0
 [0.2.2]: https://github.com/txuli/ImmichSync/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/txuli/ImmichSync/compare/v0.1.3...v0.2.1
 [0.1.3]: https://github.com/txuli/ImmichSync/compare/v0.1.2...v0.1.3
