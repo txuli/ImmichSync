@@ -118,11 +118,16 @@ export default function dashboard() {
                         </div>
                     )}
                     {current?.status === "success" && (
-                        <div className="mt-3 text-sm text-green-500">
-                            {current.disk_name} synced successfully
+                        <div className={`mt-3 text-sm ${current.error ? "text-amber-500" : "text-green-500"}`}>
+                            {current.disk_name} synced {current.error ? "with some errors" : "successfully"}
                             <p className="text-xs text-gray-500 mt-1">
                                 at {formatTime(current.timestamp)}
                             </p>
+                            {current.error && (
+                                <p className="text-xs text-gray-500 mt-1 wrap-break-words">
+                                    {current.error}
+                                </p>
+                            )}
                         </div>
                     )}
                     {current?.status === "error" && (
@@ -166,6 +171,9 @@ export default function dashboard() {
                             <div className="flex items-center gap-3 shrink-0">
                                 {entry.status === "error" && (
                                     <span className="text-red-500 text-xs">failed</span>
+                                )}
+                                {entry.status === "success" && entry.error && (
+                                    <span className="text-amber-500 text-xs">with errors</span>
                                 )}
                                 {entry.status === "success" && entry.uploaded_photos > 0 && (
                                     <span className="text-gray-500 text-xs">

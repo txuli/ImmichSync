@@ -5,4 +5,6 @@
 export interface ValidResponse {
     valid: boolean;
     type_acc: string;
+    /** Set when a sync completed but immich-go reported errors on some files. */
+    warning?: string | null;
 }

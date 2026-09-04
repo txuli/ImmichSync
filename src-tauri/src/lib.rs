@@ -37,11 +37,13 @@ async fn verify_token(url: &str, token: &str) -> Result<ValidResponse, String> {
         Ok(ValidResponse {
             valid: true,
             type_acc: "credential".to_string(),
+            warning: None,
         })
     } else {
         Ok(ValidResponse {
             valid: false,
             type_acc: "credential".to_string(),
+            warning: None,
         })
     }
 }
@@ -59,10 +61,12 @@ async fn save_credentials(app: AppHandle, url: &str, token: &str) -> Result<Vali
         Ok(_) => Ok(ValidResponse {
             valid: true,
             type_acc: "save".to_string(),
+            warning: None,
         }),
         Err(_err) => Ok(ValidResponse {
             valid: false,
             type_acc: "save".to_string(),
+            warning: None,
         }),
     }
 }

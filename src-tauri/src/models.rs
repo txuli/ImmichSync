@@ -7,6 +7,10 @@ pub struct CheckToken {
 pub struct ValidResponse {
     pub valid: bool,
     pub type_acc: String,
+    /// Set when `sync_assets` completed but immich-go reported errors on
+    /// some files (e.g. a transient IO error) while still uploading the
+    /// rest of the batch. `None` means a clean, error-free sync.
+    pub warning: Option<String>,
 }
 #[derive(Deserialize, Serialize, Debug)]
 pub struct Settings {

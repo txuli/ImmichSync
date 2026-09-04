@@ -54,15 +54,34 @@ pub async fn sync_assets(
             "--into-album",
             &album_name,
             "--no-ui",
+            
+            "--on-errors",
+            "continue",
             &path,
         ])
         .output()
         .await
         .map_err(|e| e.to_string())?;
 
-    if !output.status.success() {
-        return Err(String::from_utf8_lossy(&output.stderr).to_string());
-    }
+    // immich-go exits non-zero whenever *any* file failed, even if the rest
+    // of the batch uploaded successfully — with --on-errors continue that's
+    // expected on large syncs, so it's surfaced as a warning on the response
+    // rather than failing the whole sync (which would also skip the removal
+    // step below).
+    let warning = if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        eprintln!(
+            "[sync] immich-go reported errors for some files (exit status: {:?}): {stderr}",
+            output.status
+        );
+        Some(if stderr.is_empty() {
+            "immich-go reported errors while uploading some files".to_string()
+        } else {
+            stderr
+        })
+    } else {
+        None
+    };
 
     let remove_after_upload = store
         .get("rmAssets")
@@ -78,6 +97,7 @@ pub async fn sync_assets(
     Ok(ValidResponse {
         valid: true,
         type_acc: "sync".to_string(),
+        warning,
     })
 }
 

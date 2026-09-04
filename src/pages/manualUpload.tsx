@@ -2,8 +2,9 @@ import { useState, type SubmitEvent } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import ImmichForm from "../components/ImmichForm";
+import type { ValidResponse } from "../types";
 
-type UploadStatus = "idle" | "uploading" | "success" | "error";
+type UploadStatus = "idle" | "uploading" | "success" | "warning" | "error";
 
 function FolderIcon() {
     return (
@@ -46,6 +47,15 @@ function CheckIcon() {
     );
 }
 
+function WarningIcon() {
+    return (
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" className="shrink-0 mt-0.5">
+            <circle cx="12" cy="12" r="9" stroke="#F59E0B" strokeWidth="1.8" />
+            <path d="M12 7.5v6M12 16.5v.01" stroke="#F59E0B" strokeWidth="1.8" strokeLinecap="round" />
+        </svg>
+    );
+}
+
 function ErrorIcon() {
     return (
         <svg width="17" height="17" viewBox="0 0 24 24" fill="none" className="shrink-0 mt-0.5">
@@ -60,6 +70,7 @@ export default function manualUpload() {
     const [albumName, setAlbumName] = useState("");
     const [status, setStatus] = useState<UploadStatus>("idle");
     const [error, setError] = useState<string | null>(null);
+    const [warning, setWarning] = useState<string | null>(null);
     const [uploadedAlbum, setUploadedAlbum] = useState("");
 
     async function selectFolder() {
@@ -81,13 +92,19 @@ export default function manualUpload() {
 
         setStatus("uploading");
         setError(null);
+        setWarning(null);
         try {
-            await invoke("sync_assets", {
+            const response = await invoke<ValidResponse>("sync_assets", {
                 path: folderPath,
                 album: albumName.trim() || undefined,
             });
             setUploadedAlbum(albumName.trim());
-            setStatus("success");
+            if (response.warning) {
+                setWarning(response.warning);
+                setStatus("warning");
+            } else {
+                setStatus("success");
+            }
         } catch (err) {
             setError(String(err));
             setStatus("error");
@@ -180,6 +197,21 @@ export default function manualUpload() {
                                         Upload completed successfully
                                         {uploadedAlbum ? ` to "${uploadedAlbum}"` : ""}.
                                     </p>
+                                </div>
+                            </div>
+                        )}
+
+                        {status === "warning" && (
+                            <div className="mt-4 flex items-start gap-2.5 rounded-md border border-amber-500/25 bg-amber-500/8 px-3.5 py-3">
+                                <WarningIcon />
+                                <div>
+                                    <p className="text-[13px] text-amber-400 font-medium">
+                                        Uploaded with some errors
+                                        {uploadedAlbum ? ` to "${uploadedAlbum}"` : ""}.
+                                    </p>
+                                    {warning && (
+                                        <p className="text-xs text-gray-500 mt-0.5 wrap-break-word">{warning}</p>
+                                    )}
                                 </div>
                             </div>
                         )}

@@ -136,18 +136,32 @@ pub fn notify_new_device(app: &AppHandle, disk_name: &str, mount_point: &std::pa
                         ));
                         debug_log(format!("sync_assets finished, ok={}", sync_result.is_ok()));
                         match sync_result {
-                            Ok(_) => {
-                                debug_log("calling upload_success");
-                                upload_success();
-                                emit_sync_status(
-                                    &app_handle,
-                                    "success",
-                                    &disk_name,
-                                    None,
-                                    uploaded_photos,
-                                    uploaded_size,
-                                );
-                                debug_log("upload_success finished");
+                            Ok(response) => {
+                                if let Some(warning) = response.warning {
+                                    debug_log(format!("calling upload_success_with_warning: {warning}"));
+                                    upload_success_with_warning(&warning);
+                                    emit_sync_status(
+                                        &app_handle,
+                                        "success",
+                                        &disk_name,
+                                        Some(warning),
+                                        uploaded_photos,
+                                        uploaded_size,
+                                    );
+                                    debug_log("upload_success_with_warning finished");
+                                } else {
+                                    debug_log("calling upload_success");
+                                    upload_success();
+                                    emit_sync_status(
+                                        &app_handle,
+                                        "success",
+                                        &disk_name,
+                                        None,
+                                        uploaded_photos,
+                                        uploaded_size,
+                                    );
+                                    debug_log("upload_success finished");
+                                }
                             }
                             Err(err) => {
                                 eprintln!("[sync] Sync failed: {err}");
@@ -194,6 +208,30 @@ pub fn upload_success() {
         .show();
 
     debug_log(format!("upload_success: Toast::show() -> {result:?}"));
+    if let Err(err) = result {
+        eprintln!("[notification] Failed to show the notification: {err:?}");
+    }
+}
+
+/// Same as `upload_success`, but for a sync that completed with some files
+/// skipped or errored (e.g. a transient IO error on a large batch) — the
+/// rest of the batch still uploaded, so this isn't a failure, just a
+/// heads-up.
+#[cfg(windows)]
+pub fn upload_success_with_warning(warning: &str) {
+    use tauri_winrt_notification::{Duration, Toast};
+
+    let result = Toast::new(APP_ID)
+        .title("Sync complete with some errors")
+        .text1(&format!(
+            "Most photos uploaded, but some failed: {warning}"
+        ))
+        .duration(Duration::Short)
+        .show();
+
+    debug_log(format!(
+        "upload_success_with_warning: Toast::show() -> {result:?}"
+    ));
     if let Err(err) = result {
         eprintln!("[notification] Failed to show the notification: {err:?}");
     }
