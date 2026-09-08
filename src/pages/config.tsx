@@ -5,7 +5,7 @@ import { useEffect, useState, type SyntheticEvent } from "react";
 import Options from "../components/options";
 import { enable, isEnabled, disable } from '@tauri-apps/plugin-autostart';
 import { useUpdateStore } from "../store/updateStore";
-
+import {  error as errorLog } from '@tauri-apps/plugin-log';
 import { load } from '@tauri-apps/plugin-store';
 import type { ValidResponse, StoredFlag } from '../types';
 const store = await load('settings.json', { autoSave: true });
@@ -143,7 +143,8 @@ export default function config() {
                 setResponse(null);
                 setCredState("valid");
             }
-        } catch {
+        } catch (error){
+            errorLog(String(error))
             setResponse({ valid: false, type_acc: "credential" });
         } finally {
             setSaving(false);

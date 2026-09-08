@@ -4,6 +4,8 @@ import { useState, type SyntheticEvent } from "react";
 import Database from '@tauri-apps/plugin-sql';
 import { invoke } from "@tauri-apps/api/core";
 import type { ValidResponse } from "../types";
+import { debug } from '@tauri-apps/plugin-log';
+import { Store } from '@tauri-apps/plugin-store';
 interface NewDeviceProps {
     device: string;
     mountPoint: string;
@@ -44,22 +46,33 @@ export default function NewDevice({ device, mountPoint, onDone }: NewDeviceProps
         setSaving(true);
         try {
             const db = await Database.load('sqlite:immichsync.db')
-            await db.execute(
-                'INSERT into devices (device, albumName, direct,path) VALUES (?, ?, ?,?)',
-                [device, albumName, direct, mountPoint]
+            const exist = await db.select<{ device: string }[]>('select device from devices where device = ?', [device])
+            const store = await Store.load('settings.json');
+            const url = await store.get("url")
+            console.log(exist)
+            if (exist.length ==0) {
+                
+                await db.execute(
+                    'INSERT into devices (device, albumName, direct,path) VALUES (?, ?, ?,?)',
+                    [device, albumName, direct, mountPoint]
 
-            );
-            try {
-                await invoke<ValidResponse>("sync_assets", {
-                    path: mountPoint,
-                    album: albumName,
-                })
-                onDone();
-            } catch (error) {
-                setError(String(error))
+                );
+                try {
+                    await invoke<ValidResponse>("sync_assets", {
+                        path: mountPoint,
+                        album: albumName,
+                    })
+                    onDone();
+                } catch (error) {
+                    setError(String(error))
+                }
             }
-
-
+            if (!url) {
+                
+                setError("No credentials found. Please set them up")
+                debug(`${device} already exist`)
+            }
+            
         } finally {
             setSaving(false);
         }
@@ -118,7 +131,7 @@ export default function NewDevice({ device, mountPoint, onDone }: NewDeviceProps
                             </button>
                         </div>
                     </form>
-                    {error ? <p className="text-red-600/65 text-sm">No credentials found. Please set them up</p> : <></>}
+                    {error ? <p className="text-red-600/65 text-sm">{error}</p> : <></>}
 
                 </ImmichForm>
             </div>

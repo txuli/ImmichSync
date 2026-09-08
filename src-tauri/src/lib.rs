@@ -25,21 +25,30 @@ const HIDDEN_ARG: &str = "--hidden";
 
 #[tauri::command]
 async fn verify_token(url: &str, token: &str) -> Result<ValidResponse, String> {
+    log::info!("[auth] verifying token against {url}");
     let client = reqwest::Client::new();
     let response = client
         .post(format!("{}/api/auth/validateToken", url))
         .header("x-api-key", token)
         .send()
         .await
-        .map_err(|err| format!("Network error: {}", err))?;
+        .map_err(|err| {
+            log::error!("[auth] network error verifying token against {url}: {err}");
+            format!("Network error: {}", err)
+        })?;
 
     if response.status().is_success() {
+        log::info!("[auth] token verified successfully for {url}");
         Ok(ValidResponse {
             valid: true,
             type_acc: "credential".to_string(),
             warning: None,
         })
     } else {
+        log::warn!(
+            "[auth] token verification rejected by {url}: status={}",
+            response.status()
+        );
         Ok(ValidResponse {
             valid: false,
             type_acc: "credential".to_string(),
@@ -49,7 +58,10 @@ async fn verify_token(url: &str, token: &str) -> Result<ValidResponse, String> {
 }
 #[tauri::command]
 async fn save_credentials(app: AppHandle, url: &str, token: &str) -> Result<ValidResponse, String> {
-    let store = app.store("settings.json").map_err(|e| e.to_string())?;
+    let store = app.store("settings.json").map_err(|e| {
+        log::error!("[settings] failed to open settings store: {e}");
+        e.to_string()
+    })?;
     let try_save = || -> Result<(), std::io::Error> {
         store.set("url", json!(url));
         store.set("token", json!(token));
@@ -58,16 +70,22 @@ async fn save_credentials(app: AppHandle, url: &str, token: &str) -> Result<Vali
     };
 
     match try_save() {
-        Ok(_) => Ok(ValidResponse {
-            valid: true,
-            type_acc: "save".to_string(),
-            warning: None,
-        }),
-        Err(_err) => Ok(ValidResponse {
-            valid: false,
-            type_acc: "save".to_string(),
-            warning: None,
-        }),
+        Ok(_) => {
+            log::info!("[settings] credentials saved for {url}");
+            Ok(ValidResponse {
+                valid: true,
+                type_acc: "save".to_string(),
+                warning: None,
+            })
+        }
+        Err(err) => {
+            log::error!("[settings] failed to save credentials for {url}: {err}");
+            Ok(ValidResponse {
+                valid: false,
+                type_acc: "save".to_string(),
+                warning: None,
+            })
+        }
     }
 }
 
@@ -94,7 +112,7 @@ pub fn run() {
     
     let database_url = "sqlite:immichsync.db";
 
-    tauri::Builder::default()
+    let result = tauri::Builder::default()
         .plugin(
             tauri_plugin_sql::Builder::new()
                 .add_migrations(database_url, migrations)
@@ -112,12 +130,26 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(
+            tauri_plugin_log::Builder::new()
+                .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::LogDir {
+                        file_name: Some("immichsync".to_string()),
+                    },
+                ))
+                .target(tauri_plugin_log::Target::new(
+                    tauri_plugin_log::TargetKind::Stdout,
+                ))
+                .level(log::LevelFilter::Debug)
+                .build(),
+        )
         .invoke_handler(tauri::generate_handler![
             verify_token,
             save_credentials,
             sync_assets
         ])
         .setup(|app| {
+            log::info!("[startup] ImmichSync starting up");
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&quit_i])?;
             let _tray = TrayIconBuilder::new()
@@ -125,10 +157,11 @@ pub fn run() {
                 .show_menu_on_left_click(true)
                 .on_menu_event(|app, event| match event.id.as_ref() {
                     "quit" => {
+                        log::info!("[tray] quit requested");
                         app.exit(0);
                     }
                     _ => {
-                        log::error!("menu item {:?} not handled", event.id);
+                        log::error!("[tray] menu item {:?} not handled", event.id);
                     }
                 })
                 .on_tray_icon_event(|tray, event| match event {
@@ -148,6 +181,7 @@ pub fn run() {
                 })
                 .icon(app.default_window_icon().unwrap().clone())
                 .build(app)?;
+            log::info!("[startup] tray icon initialized");
 
             // The window starts hidden (see tauri.conf.json). Only reveal it
             // unless we were launched by the autostart plugin with --hidden.
@@ -155,6 +189,9 @@ pub fn run() {
             if let Some(window) = app.get_webview_window("main") {
                 if !launched_hidden {
                     window.show()?;
+                    log::info!("[startup] main window shown");
+                } else {
+                    log::info!("[startup] launched hidden via autostart");
                 }
 
                 let window_handle = window.clone();
@@ -178,6 +215,10 @@ pub fn run() {
             }
             _ => {}
         })
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .run(tauri::generate_context!());
+
+    if let Err(err) = result {
+        log::error!("[startup] fatal error while running tauri application: {err:?}");
+        panic!("error while running tauri application: {err:?}");
+    }
 }

@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager};
+use tauri_plugin_log::log;
 
 fn app_icon_path<R: tauri::Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
     if let Ok(path) = app
@@ -19,7 +20,7 @@ fn app_icon_path<R: tauri::Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
         }
     }
 
-    eprintln!("[notification] App icon not found in any expected path");
+    log::warn!("[notification] app icon not found in any expected path");
     None
 }
 
@@ -53,7 +54,7 @@ fn register_aumid(icon_path: Option<&std::path::Path>) {
     })();
 
     if let Err(err) = result {
-        eprintln!("[notification] Failed to register the app's AUMID: {err:?}");
+        log::error!("[notification] failed to register the app's AUMID: {err:?}");
     }
 }
 
@@ -61,6 +62,7 @@ fn register_aumid(icon_path: Option<&std::path::Path>) {
 pub fn notify_sync_started(app: &AppHandle, album_name: &str) {
     use tauri_winrt_notification::{Duration, Toast};
 
+    log::info!("[notification] showing sync-started toast for album \"{album_name}\"");
     let icon_path = app_icon_path(app);
     register_aumid(icon_path.as_deref());
 
@@ -71,7 +73,7 @@ pub fn notify_sync_started(app: &AppHandle, album_name: &str) {
         .show();
 
     if let Err(err) = result {
-        eprintln!("[notification] Failed to show the notification: {err:?}");
+        log::error!("[notification] failed to show the sync-started notification: {err:?}");
     }
 }
 
@@ -79,6 +81,7 @@ pub fn notify_sync_started(app: &AppHandle, album_name: &str) {
 pub fn notify_sync_started<R: tauri::Runtime>(app: &AppHandle<R>, album_name: &str) {
     use tauri_plugin_notification::NotificationExt;
 
+    log::info!("[notification] showing sync-started toast for album \"{album_name}\"");
     let icon_path = app_icon_path(app);
 
     let mut builder = app
@@ -94,6 +97,6 @@ pub fn notify_sync_started<R: tauri::Runtime>(app: &AppHandle<R>, album_name: &s
     }
 
     if let Err(err) = builder.show() {
-        eprintln!("[notification] Failed to show the notification: {err:?}");
+        log::error!("[notification] failed to show the sync-started notification: {err:?}");
     }
 }

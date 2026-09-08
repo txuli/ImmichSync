@@ -1,6 +1,6 @@
 use crate::models::ValidResponse;
-use chrono::Local;
 use tauri::AppHandle;
+use tauri_plugin_log::log;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_store::StoreExt;
 
@@ -22,12 +22,11 @@ pub async fn sync_assets(
     if !std::path::Path::new(&path).exists() {
         return Err(format!("sync_assets: path does not exist: {path}"));
     }
-
-    let store = app.store("settings.json").map_err(|e| e.to_string())?;
     let album_name = match album {
         Some(name) if !name.is_empty() => name,
         _ => format!("ImmichSync"),
     };
+    let store = app.store("settings.json").map_err(|e| e.to_string())?;
 
     let url = store
         .get("url")
@@ -42,7 +41,7 @@ pub async fn sync_assets(
         .shell()
         .sidecar("immich-go")
         .map_err(|e| e.to_string())?;
-
+    log::info!("sync starting");
     let output = sidecar
         .args([
             "upload",
@@ -54,14 +53,17 @@ pub async fn sync_assets(
             "--into-album",
             &album_name,
             "--no-ui",
-            
             "--on-errors",
             "continue",
             &path,
         ])
         .output()
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| {
+            log::error!("[sync] failed to spawn immich-go for path={path}: {e}");
+            e.to_string()
+        })?;
+    log::debug!("[sync] immich-go output: {:?}", output);
 
     // immich-go exits non-zero whenever *any* file failed, even if the rest
     // of the batch uploaded successfully — with --on-errors continue that's
@@ -70,7 +72,7 @@ pub async fn sync_assets(
     // step below).
     let warning = if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        eprintln!(
+        log::error!(
             "[sync] immich-go reported errors for some files (exit status: {:?}): {stderr}",
             output.status
         );
@@ -80,6 +82,7 @@ pub async fn sync_assets(
             stderr
         })
     } else {
+        log::info!("[sync] immich-go upload succeeded for path={path} album={album_name}");
         None
     };
 
@@ -90,7 +93,7 @@ pub async fn sync_assets(
 
     if remove_after_upload {
         if let Err(err) = delete_media_files(&path) {
-            eprintln!("[sync] Failed to remove uploaded assets from {path}: {err}");
+            log::error!("[sync] failed to remove uploaded assets from {path}: {err}");
         }
     }
 
@@ -102,8 +105,8 @@ pub async fn sync_assets(
 }
 
 const MEDIA_EXTENSIONS: &[&str] = &[
-    "jpg", "jpeg", "png", "gif", "heic", "heif", "bmp", "tiff", "tif", "webp", "cr2", "cr3",
-    "nef", "arw", "dng", "raf", "orf", "rw2", "mp4", "mov", "avi", "mkv", "m4v", "3gp", "webm",
+    "jpg", "jpeg", "png", "gif", "heic", "heif", "bmp", "tiff", "tif", "webp", "cr2", "cr3", "nef",
+    "arw", "dng", "raf", "orf", "rw2", "mp4", "mov", "avi", "mkv", "m4v", "3gp", "webm",
 ];
 
 /// Best-effort count (and combined size) of media files found under `path`.
@@ -184,6 +187,7 @@ fn delete_media_files(path: &str) -> Result<(), String> {
     if errors.is_empty() {
         Ok(())
     } else {
+        log::error!("{}", errors.join("; "));
         Err(errors.join("; "))
     }
 }

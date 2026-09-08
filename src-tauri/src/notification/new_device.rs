@@ -1,6 +1,7 @@
 use crate::models::SyncStatusEvent;
 use std::path::PathBuf;
 use tauri::{AppHandle, Emitter, Manager};
+use tauri_plugin_log::log;
 
 /// Broadcasts the "sync-status" event so the dashboard can show live
 /// progress and a recent-activity feed.
@@ -21,24 +22,7 @@ fn emit_sync_status(
         uploaded_size,
     };
     if let Err(err) = app.emit("sync-status", payload) {
-        eprintln!("[notification] Failed to emit sync-status event: {err:?}");
-    }
-}
-
-fn debug_log(msg: impl AsRef<str>) {
-    use std::io::Write;
-    let path = std::env::temp_dir().join("immichsync-debug.log");
-    if let Ok(mut file) = std::fs::OpenOptions::new()
-        .create(true)
-        .append(true)
-        .open(&path)
-    {
-        let _ = writeln!(
-            file,
-            "[{:?}] {}",
-            std::time::SystemTime::now(),
-            msg.as_ref()
-        );
+        log::error!("[notification] failed to emit sync-status event: {err:?}");
     }
 }
 
@@ -60,7 +44,7 @@ fn app_icon_path<R: tauri::Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
         }
     }
 
-    eprintln!("[notification] App icon not found in any expected path");
+    log::warn!("[notification] app icon not found in any expected path");
     None
 }
 
@@ -94,7 +78,7 @@ fn register_aumid(icon_path: Option<&std::path::Path>) {
     })();
 
     if let Err(err) = result {
-        eprintln!("[notification] Failed to register the app's AUMID: {err:?}");
+        log::error!("[notification] failed to register the app's AUMID: {err:?}");
     }
 }
 
@@ -108,6 +92,7 @@ pub fn notify_new_device(app: &AppHandle, disk_name: &str, mount_point: &std::pa
     let icon_path = app_icon_path(app);
     register_aumid(icon_path.as_deref());
 
+    log::info!("[notification] showing new-device toast for {disk_name}");
     let result = Toast::new(APP_ID)
         .title("New device detected")
         .text1(&format!("Connected: {disk_name}"))
@@ -118,8 +103,7 @@ pub fn notify_new_device(app: &AppHandle, disk_name: &str, mount_point: &std::pa
         .on_activated(move |action| {
             match action.as_deref() {
                 Some("device") => {
-                    println!("[notification] Sync pressed for {disk_name}");
-                    debug_log("sync button pressed, starting thread");
+                    log::info!("[notification] quick upload accepted for {disk_name}, starting thread");
                     let app_handle = app_handle.clone();
                     let path = mount_point.to_string_lossy().to_string();
                     let disk_name = disk_name.clone();
@@ -128,17 +112,18 @@ pub fn notify_new_device(app: &AppHandle, disk_name: &str, mount_point: &std::pa
                         // Snapshot the media count/size before syncing — sync_assets may
                         // delete these files afterward if "remove assets after upload" is on.
                         let (uploaded_photos, uploaded_size) = crate::sync::scan_media_stats(&path);
-                        debug_log("thread started, calling sync_assets");
                         let sync_result = tauri::async_runtime::block_on(crate::sync::sync_assets(
                             app_handle.clone(),
                             path.clone(),
                             None,
                         ));
-                        debug_log(format!("sync_assets finished, ok={}", sync_result.is_ok()));
+                        log::debug!(
+                            "[notification] sync_assets finished for {disk_name}, ok={}",
+                            sync_result.is_ok()
+                        );
                         match sync_result {
                             Ok(response) => {
                                 if let Some(warning) = response.warning {
-                                    debug_log(format!("calling upload_success_with_warning: {warning}"));
                                     upload_success_with_warning(&warning);
                                     emit_sync_status(
                                         &app_handle,
@@ -148,9 +133,7 @@ pub fn notify_new_device(app: &AppHandle, disk_name: &str, mount_point: &std::pa
                                         uploaded_photos,
                                         uploaded_size,
                                     );
-                                    debug_log("upload_success_with_warning finished");
                                 } else {
-                                    debug_log("calling upload_success");
                                     upload_success();
                                     emit_sync_status(
                                         &app_handle,
@@ -160,21 +143,19 @@ pub fn notify_new_device(app: &AppHandle, disk_name: &str, mount_point: &std::pa
                                         uploaded_photos,
                                         uploaded_size,
                                     );
-                                    debug_log("upload_success finished");
                                 }
                             }
                             Err(err) => {
-                                eprintln!("[sync] Sync failed: {err}");
-                                debug_log(format!("calling upload_failed: {err}"));
+                                log::error!("[notification] sync failed for {disk_name}: {err}");
                                 upload_failed(&err);
                                 emit_sync_status(&app_handle, "error", &disk_name, Some(err), 0, 0);
-                                debug_log("upload_failed finished");
                             }
                         }
                     });
                 }
-                Some("ignore") => println!("[notification] Ignore pressed for {disk_name}"),
+                Some("ignore") => log::info!("[notification] ignore pressed for {disk_name}"),
                 Some("new") => {
+                    log::info!("[notification] choose-album pressed for {disk_name}, opening window");
                     if let Some(window) = app_handle.get_webview_window("main") {
                         let _ = window.unminimize();
                         let _ = window.show();
@@ -184,7 +165,7 @@ pub fn notify_new_device(app: &AppHandle, disk_name: &str, mount_point: &std::pa
                         "navigate-new-device",
                         serde_json::json!({ "diskName": disk_name, "mountPoint": mount_point }),
                     ) {
-                        eprintln!("[notification] Failed to emit navigate-new-device event: {err:?}");
+                        log::error!("[notification] failed to emit navigate-new-device event: {err:?}");
                     }
                 }
                 _ => {}
@@ -194,7 +175,7 @@ pub fn notify_new_device(app: &AppHandle, disk_name: &str, mount_point: &std::pa
         .show();
 
     if let Err(err) = result {
-        eprintln!("[notification] Failed to show the notification: {err:?}");
+        log::error!("[notification] failed to show the new-device notification: {err:?}");
     }
 }
 #[cfg(windows)]
@@ -207,9 +188,9 @@ pub fn upload_success() {
         .duration(Duration::Short)
         .show();
 
-    debug_log(format!("upload_success: Toast::show() -> {result:?}"));
+    log::debug!("[notification] upload_success toast -> {result:?}");
     if let Err(err) = result {
-        eprintln!("[notification] Failed to show the notification: {err:?}");
+        log::error!("[notification] failed to show the upload-success notification: {err:?}");
     }
 }
 
@@ -229,11 +210,9 @@ pub fn upload_success_with_warning(warning: &str) {
         .duration(Duration::Short)
         .show();
 
-    debug_log(format!(
-        "upload_success_with_warning: Toast::show() -> {result:?}"
-    ));
+    log::debug!("[notification] upload_success_with_warning toast -> {result:?}");
     if let Err(err) = result {
-        eprintln!("[notification] Failed to show the notification: {err:?}");
+        log::error!("[notification] failed to show the upload-success-with-warning notification: {err:?}");
     }
 }
 
@@ -248,7 +227,7 @@ pub fn upload_failed(error: &str) {
         .show();
 
     if let Err(err) = result {
-        eprintln!("[notification] Failed to show the notification: {err:?}");
+        log::error!("[notification] failed to show the upload-failed notification: {err:?}");
     }
 }
 #[cfg(not(windows))]
@@ -274,6 +253,6 @@ pub fn notify_new_device<R: tauri::Runtime>(
     }
 
     if let Err(err) = builder.show() {
-        eprintln!("[notification] Failed to show the notification: {err:?}");
+        log::error!("[notification] failed to show the new-device notification: {err:?}");
     }
 }

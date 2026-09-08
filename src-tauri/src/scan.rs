@@ -4,6 +4,8 @@ use std::thread;
 use std::time::Duration;
 use sysinfo::Disks;
 use tauri::AppHandle;
+use tauri_plugin_log::log;
+use tauri_plugin_store::StoreExt;
 #[derive(Debug)]
 
 pub enum SyncError {
@@ -12,7 +14,16 @@ pub enum SyncError {
 }
 #[tauri::command]
 pub fn scan(app: AppHandle) {
+    log::info!("[scan] starting device watcher");
     thread::spawn(move || {
+        let store = match app.store("settings.json") {
+            Ok(store) => store,
+            Err(error) => {
+                log::error!("[scan] failed to open settings store: {error}");
+                return;
+            }
+        };
+
         let mut disks = Disks::new_with_refreshed_list();
         let mut old_disks: Vec<String> = vec![];
         loop {
@@ -34,39 +45,60 @@ pub fn scan(app: AppHandle) {
 
             for (name, mount_point) in &actual_disks {
                 if !old_disks.iter().any(|n| n == name) {
+                    log::info!(
+                        "[scan] device connected: {name} at {}",
+                        mount_point.display()
+                    );
+                    let url = store.get("url");
                     match tauri::async_runtime::block_on(get_pool(&app)) {
                         Ok(pool) => match tauri::async_runtime::block_on(check(&pool, name)) {
                             Ok(Some(row)) => {
                                 if row.direct == "true" {
-                                    let sync_result =
-                                        tauri::async_runtime::block_on(crate::sync::sync_assets(
-                                            app.clone(),
-                                            row.path,
-                                            Some(row.album_name),
-                                        ));
-                                } else {
-                                    notification::known_device::notify_known_device(
-                                        &app,
-                                        &row.device,
-                                        std::path::Path::new(&row.path),
-                                        &row.album_name,
+                                    log::info!(
+                                        "[scan] known device {name} set to direct sync, path={} album={}",
+                                        row.path, row.album_name
                                     );
+                                    log::info!("url {:?}", url);
+                                    if url.is_some() {
+                                        let _sync_result = tauri::async_runtime::block_on(
+                                            crate::sync::sync_assets(
+                                                app.clone(),
+                                                row.path,
+                                                Some(row.album_name),
+                                            ),
+                                        );
+                                    }
+                                } else {
+                                    log::info!(
+                                        "[scan] known device {name} requires confirmation, notifying"
+                                    );
+                                    log::info!("{:?}", url);
+                                    if url.is_some() {
+                                        println!("url{:?}", url);
+                                        notification::known_device::notify_known_device(
+                                            &app,
+                                            &row.device,
+                                            std::path::Path::new(&row.path),
+                                            &row.album_name,
+                                        );
+                                    }
                                 }
                             }
                             Ok(None) => {
-                                notification::new_device::notify_new_device(
-                                    &app,
-                                    name,
-                                    mount_point,
-                                );
+                                log::info!("[scan] unknown device {name}, notifying");
+                                if url.is_some() {
+                                    notification::new_device::notify_new_device(
+                                        &app,
+                                        name,
+                                        mount_point,
+                                    );
+                                }
                             }
-                            Err(error) => {
-                                eprintln!("Failed to check device {name}: {error:?}");
-                            }
+                            // Already logged by `check` with query context.
+                            Err(_error) => {}
                         },
-                        Err(error) => {
-                            eprintln!("Failed to open immichsync.db for {name}: {error:?}");
-                        }
+                        // Already logged by `get_pool` with the db path.
+                        Err(_error) => {}
                     }
                 }
             }
