@@ -65,6 +65,8 @@ pub fn scan(app: AppHandle) {
                                                 app.clone(),
                                                 row.path,
                                                 Some(row.album_name),
+                                                name.to_string()
+                                                
                                             ),
                                         );
                                     }

@@ -7,6 +7,7 @@ pub use models::CheckToken;
 pub use models::Settings;
 pub use models::ValidResponse;
 pub mod sync;
+mod emit_sync_status;
 pub mod scan;
 use scan::scan;
 pub use sync::sync_assets;

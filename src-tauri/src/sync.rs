@@ -1,4 +1,5 @@
 use crate::models::ValidResponse;
+use crate::emit_sync_status::emit_sync_status;
 use tauri::AppHandle;
 use tauri_plugin_log::log;
 use tauri_plugin_shell::ShellExt;
@@ -15,6 +16,7 @@ pub async fn sync_assets(
     app: AppHandle,
     path: String,
     album: Option<String>,
+    disk_name: String,
 ) -> Result<ValidResponse, String> {
     if path.trim().is_empty() {
         return Err("sync_assets called with an empty path".to_string());
@@ -42,6 +44,7 @@ pub async fn sync_assets(
         .sidecar("immich-go")
         .map_err(|e| e.to_string())?;
     log::info!("sync starting");
+    emit_sync_status(&app, "syncing", &disk_name, None, 0, 0);
     let output = sidecar
         .args([
             "upload",
@@ -81,12 +84,13 @@ pub async fn sync_assets(
         } else {
             stderr
         })
+    
     } else {
         log::info!("[sync] immich-go upload succeeded for path={path} album={album_name}");
         None
     };
 
-    let remove_after_upload = store
+   /*  let remove_after_upload = store
         .get("rmAssets")
         .and_then(|v| v.get("value").and_then(|b| b.as_bool()))
         .unwrap_or(false);
@@ -95,7 +99,7 @@ pub async fn sync_assets(
         if let Err(err) = delete_media_files(&path) {
             log::error!("[sync] failed to remove uploaded assets from {path}: {err}");
         }
-    }
+    } */
 
     Ok(ValidResponse {
         valid: true,
