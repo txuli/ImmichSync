@@ -1,6 +1,6 @@
-use crate::models::SyncStatusEvent;
+
 use std::path::PathBuf;
-use tauri::{AppHandle, Emitter, Manager};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_log::log;
 use crate::emit_sync_status::emit_sync_status;
 
