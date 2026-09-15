@@ -6,9 +6,9 @@ mod notification;
 pub use models::CheckToken;
 pub use models::Settings;
 pub use models::ValidResponse;
-pub mod sync;
 mod emit_sync_status;
 pub mod scan;
+pub mod sync;
 use scan::scan;
 pub use sync::sync_assets;
 use tauri::AppHandle;
@@ -105,12 +105,35 @@ pub fn run() {
             version: 2,
             description: "add_activity_status_and_error",
             sql: "ALTER TABLE activity ADD COLUMN status TEXT NOT NULL DEFAULT 'success';
-              ALTER TABLE activity ADD COLUMN error TEXT;",
+                  ALTER TABLE activity ADD COLUMN error TEXT;",
             kind: MigrationKind::Up,
         },
+        Migration {
+            version: 3,
+            description: "add table to save the media types and connect with saved devices",
+            sql: "
+                CREATE TABLE mediaType (
+                    id INTEGER PRIMARY KEY,
+                    extension TEXT
+                );
+
+                CREATE TABLE devices_new (
+                    id INTEGER PRIMARY KEY,
+                    name TEXT, -- sustituye por tus campos actuales
+                    idExtension INTEGER DEFAULT 1,
+                    FOREIGN KEY (idExtension) REFERENCES mediaType(id)
+                );
+
+                INSERT INTO devices_new (id, name)
+                SELECT id, name FROM devices;
+
+                DROP TABLE devices;
+                ALTER TABLE devices_new RENAME TO devices;
+            ",
+            kind: MigrationKind::Up,
+        }
     ];
 
-    
     let database_url = "sqlite:immichsync.db";
 
     let result = tauri::Builder::default()
