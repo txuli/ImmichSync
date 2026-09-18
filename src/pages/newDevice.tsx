@@ -61,6 +61,7 @@ export default function NewDevice({ device, mountPoint, onDone }: NewDeviceProps
                     await invoke<ValidResponse>("sync_assets", {
                         path: mountPoint,
                         album: albumName,
+                        diskName:device
                     })
                     onDone();
                 } catch (error) {
