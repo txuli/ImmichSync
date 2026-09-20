@@ -119,16 +119,47 @@ pub fn run() {
 
                 CREATE TABLE devices_new (
                     id INTEGER PRIMARY KEY,
-                    name TEXT, -- sustituye por tus campos actuales
+                    albumName TEXT,
                     idExtension INTEGER DEFAULT 1,
                     FOREIGN KEY (idExtension) REFERENCES mediaType(id)
                 );
 
-                INSERT INTO devices_new (id, name)
-                SELECT id, name FROM devices;
+                INSERT INTO devices_new (id, albumName)
+                SELECT id, albumName FROM devices;
 
                 DROP TABLE devices;
                 ALTER TABLE devices_new RENAME TO devices;
+            ",
+            kind: MigrationKind::Up,
+        },
+        Migration {
+            version: 4,
+            description: "add extensions into table",
+            sql : "
+            insert into mediaType (extension) VALUES('jpg');
+            insert into mediaType (extension) VALUES('jpeg');
+            insert into mediaType (extension) VALUES('png');
+            insert into mediaType (extension) VALUES('gif');
+            insert into mediaType (extension) VALUES('heic');
+            insert into mediaType (extension) VALUES('bmp');
+            insert into mediaType (extension) VALUES('tiff');
+            insert into mediaType (extension) VALUES('tif');
+            insert into mediaType (extension) VALUES('webp');
+            insert into mediaType (extension) VALUES('cr2');
+            insert into mediaType (extension) VALUES('cr3');
+            insert into mediaType (extension) VALUES('nef');
+            insert into mediaType (extension) VALUES('arw');
+            insert into mediaType (extension) VALUES('dng');
+            insert into mediaType (extension) VALUES('raf');
+            insert into mediaType (extension) VALUES('orf');
+            insert into mediaType (extension) VALUES('rw2');
+            insert into mediaType (extension) VALUES('mp4');
+            insert into mediaType (extension) VALUES('mov');
+            insert into mediaType (extension) VALUES('avi');
+            insert into mediaType (extension) VALUES('mkv');
+            insert into mediaType (extension) VALUES('m4v');
+            insert into mediaType (extension) VALUES('3gp');
+            insert into mediaType (extension) VALUES('webm');
             ",
             kind: MigrationKind::Up,
         }

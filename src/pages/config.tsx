@@ -8,6 +8,8 @@ import { useUpdateStore } from "../store/updateStore";
 import {  error as errorLog } from '@tauri-apps/plugin-log';
 import { load } from '@tauri-apps/plugin-store';
 import type { ValidResponse, StoredFlag } from '../types';
+import Database from '@tauri-apps/plugin-sql';
+import AcceptedExtensions from "../components/acceptedExtensions";
 const store = await load('settings.json', { autoSave: true });
 
 type CredentialState = "checking" | "valid" | "invalid" | "unset";
@@ -62,7 +64,7 @@ export default function config() {
     const [saving, setSaving] = useState(false);
     const urlIsValid = urlInput.trim() === "" || URL_PATTERN.test(urlInput.trim());
     const urlIsCorrect = urlInput.trim() !== "" && URL_PATTERN.test(urlInput.trim());
-
+    let extension:Array<string> =[]
     useEffect(() => {
         async function check() {
             setRunInBackground(await isEnabled())
@@ -72,6 +74,10 @@ export default function config() {
             setNotifications(notifData?.value ?? false);
             const rmAssets = await store.get<StoredFlag>('rmAssets');
             setRemoveAssets(rmAssets?.value ?? false)
+            const db = await Database.load('sqlite:immichsync.db')
+            console.log(await db.select('SELECT * FROM mediaType'))
+            extension = await db.select('SELECT * FROM mediaType');
+            console.log(extension)
         }
         async function loadCredentials() {
             const url = await store.get<string>('url');
@@ -347,13 +353,13 @@ export default function config() {
                         )}
                     </div>
                 </ImmichForm>
-                {/* <ImmichForm>
+                 <ImmichForm>
                     <h2 className="text-xl  my-4 mb-1">Allowed extensions</h2>
                     <p className="text-gray-400 text-sm">Select the extensions that you want to sync.</p>
                     <form action="">
-
+                        {AcceptedExtensions(extension)}
                     </form>
-                </ImmichForm> */}
+                </ImmichForm> 
             </div>
         </div>
     )
