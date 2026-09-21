@@ -10,7 +10,9 @@ pub struct DeviceRow {
     pub path: String,
     #[sqlx(rename = "albumName")]
     pub album_name: String,
-    pub direct:String
+    /// `"true"` / `"false"`: the frontend binds a JS boolean through
+    /// tauri-plugin-sql, which stores it as JSON text rather than 0/1.
+    pub direct: String
 }
 
 pub async fn get_pool(app: &AppHandle) -> Result<SqlitePool, sqlx::Error> {

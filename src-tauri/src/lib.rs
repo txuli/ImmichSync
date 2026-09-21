@@ -119,13 +119,16 @@ pub fn run() {
 
                 CREATE TABLE devices_new (
                     id INTEGER PRIMARY KEY,
+                    device TEXT,
+                    path TEXT,
                     albumName TEXT,
+                    direct BOOLEAN,
                     idExtension INTEGER DEFAULT 1,
                     FOREIGN KEY (idExtension) REFERENCES mediaType(id)
                 );
 
-                INSERT INTO devices_new (id, albumName)
-                SELECT id, albumName FROM devices;
+                INSERT INTO devices_new (id, device, path, albumName, direct)
+                SELECT id, device, path, albumName, direct FROM devices;
 
                 DROP TABLE devices;
                 ALTER TABLE devices_new RENAME TO devices;

@@ -2140,6 +2140,7 @@ dependencies = [
  "tauri-plugin-updater",
  "tauri-winrt-notification",
  "tokio",
+ "walkdir",
  "windows-registry",
 ]
 

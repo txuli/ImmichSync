@@ -1,10 +1,18 @@
-use crate::models::ValidResponse;
 use crate::emit_sync_status::emit_sync_status;
-use std::collections::HashSet;
-use tauri::{AppHandle, Manager};
+use crate::models::ValidResponse;
+use chrono::{DateTime, Duration, Local, NaiveTime, Utc};
+use serde_json::json;
+use std::time::SystemTime;
+use std::{
+    collections::{ HashSet},
+    vec,
+};
+use std::path::Path;
+use tauri::{ AppHandle, Manager};
 use tauri_plugin_log::log;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_store::StoreExt;
+use walkdir::WalkDir;
 
 #[derive(Debug)]
 pub enum SyncError {
@@ -39,6 +47,7 @@ pub async fn sync_assets(
         .get("token")
         .and_then(|v| v.as_str().map(str::to_string))
         .ok_or_else(|| "missing token in settings".to_string())?;
+    prev_scan_files(url.clone(), token.clone(), path.clone()).await;
     crate::notification::new_sync::notify_sync_started(&app, &album_name);
     let sidecar = app
         .shell()
@@ -53,6 +62,7 @@ pub async fn sync_assets(
     // to know exactly which files the server actually confirmed, instead of
     // trusting the process' overall exit status.
     let log_path = upload_log_path(&app, &disk_name)?;
+    let complete_path = format!("{path}/upload");
     let output = sidecar
         .args([
             "upload",
@@ -70,7 +80,7 @@ pub async fn sync_assets(
             &log_path.to_string_lossy(),
             "--log-type",
             "text",
-            &path,
+            &complete_path,
         ])
         .output()
         .await
@@ -96,7 +106,6 @@ pub async fn sync_assets(
         } else {
             stderr
         })
-    
     } else {
         log::info!("[sync] immich-go upload succeeded for path={path} album={album_name}");
         None
@@ -131,7 +140,10 @@ pub async fn sync_assets(
         }
     }
     if let Err(err) = std::fs::remove_file(&log_path) {
-        log::debug!("[sync] failed to clean up immich-go log {}: {err}", log_path.display());
+        log::debug!(
+            "[sync] failed to clean up immich-go log {}: {err}",
+            log_path.display()
+        );
     }
 
     Ok(ValidResponse {
@@ -311,4 +323,217 @@ fn delete_confirmed_media_files(path: &str, confirmed: &HashSet<String>) -> Resu
         log::error!("{}", errors.join("; "));
         Err(errors.join("; "))
     }
+}
+
+pub async fn prev_scan_files(url: String, token: String, path: String) {
+    log::debug!("reading dir");
+    /* #[derive(Debug)] */
+    pub struct Files {
+        name: String,
+        path: String,
+        size: u64,
+        created_at: SystemTime,
+    }
+    let mut files_list: Vec<Files> = vec![];
+    for entry in WalkDir::new(&path)
+        .into_iter()
+        
+        .filter_map(|entry| entry.ok())
+    {
+        if let Ok(metadata) = entry.metadata() {
+            if metadata.is_file() && metadata.len() > 1000 {
+                let created: SystemTime = metadata.modified().unwrap();
+                let file = Files {
+                    name: entry.file_name().display().to_string(),
+                    path: entry.path().display().to_string(),
+                    size: metadata.len(),
+                    created_at: created,
+                };
+
+                files_list.push(file);
+              
+            }
+        }
+    }
+    
+    let (Some(oldest), Some(newest)) = (
+        files_list.iter().map(|f| f.created_at).min(),
+        files_list.iter().map(|f| f.created_at).max(),
+    ) else {
+        log::debug!("[sync] prev_scan_files found no files, skipping search");
+        return;
+    };
+    
+    let start_of_day = |time: SystemTime| {
+        DateTime::<Local>::from(time)
+            .date_naive()
+            .and_time(NaiveTime::MIN)
+            .and_local_timezone(Local)
+            .earliest()
+    };
+    let (Some(taken_after), Some(taken_before)) = (
+        start_of_day(oldest).map(|day| day + Duration::days(-1)),
+        start_of_day(newest).map(|day| day + Duration::days(1)),
+    ) else {
+        log::warn!("[sync] could not resolve local midnight for the date range");
+        return;
+    };
+    let client = reqwest::Client::new();
+    let after_utc = taken_after.with_timezone(&Utc).to_rfc3339();
+    let before_utc = taken_before.with_timezone(&Utc).to_rfc3339();
+    let local_fmt = |time: DateTime<Local>| time.format("%Y-%m-%d %H:%M:%S %:z").to_string();
+    log::info!(
+        "[sync] prev_scan_files sending {} file(s)\n  oldest file: {}\n  newest file: {}\n  takenAfter : {}  (UTC {})\n  takenBefore: {}  (UTC {})",
+        files_list.len(),
+        local_fmt(DateTime::<Local>::from(oldest)),
+        local_fmt(DateTime::<Local>::from(newest)),
+        local_fmt(taken_after),
+        after_utc,
+        local_fmt(taken_before),
+        before_utc,
+    );
+
+    // If the search fails midway we can't tell what the server has, so every
+    // file stays pending: worst case immich-go re-checks (and skips) them.
+    let server_files =
+        match fetch_server_files(&client, &url, &token, &after_utc, &before_utc).await {
+            Ok(server_files) => server_files,
+            Err(err) => {
+                log::error!(
+                    "[sync] prev_scan_files search failed, keeping every file as pending: {err}"
+                );
+                return;
+            }
+        };
+
+    // A local file counts as already uploaded only if the server has one with
+    // the same name (case-insensitive, like Windows) *and* the same size.
+    let total = files_list.len();
+    files_list.retain(|file| !server_files.contains(&(file.name.to_lowercase(), file.size)));
+    log::info!(
+        "[sync] prev_scan_files: {} of {total} file(s) already on the server, {} pending",
+        total - files_list.len(),
+        files_list.len()
+    );
+    for file in &files_list {
+        log::debug!("[sync] pending: {} ({} bytes)", file.path, file.size);
+    }
+
+   
+    let root = Path::new(&path);
+    let upload_dir = root.join("upload");
+    let (mut moved, mut already_there, mut failed) = (0usize, 0usize, 0usize);
+    for file in &files_list {
+        let source = Path::new(&file.path);
+        if source.starts_with(&upload_dir) {
+            already_there += 1;
+            continue;
+        }
+        let Ok(relative) = source.strip_prefix(root) else {
+            failed += 1;
+            continue;
+        };
+        let destination = upload_dir.join(relative);
+        // `rename` silently replaces an existing file on Windows.
+        if destination.exists() {
+            log::warn!(
+                "[sync] not moving {}: {} already exists",
+                source.display(),
+                destination.display()
+            );
+            failed += 1;
+            continue;
+        }
+        let result = match destination.parent() {
+            Some(parent) => std::fs::create_dir_all(parent),
+            None => Ok(()),
+        }
+        .and_then(|_| std::fs::rename(source, &destination));
+        match result {
+            Ok(()) => moved += 1,
+            Err(err) => {
+                log::error!("[sync] could not move {}: {err}", source.display());
+                failed += 1;
+            }
+        }
+    }
+    log::info!(
+        "[sync] prev_scan_files: moved {moved} file(s) to {}, {already_there} already there, {failed} failed",
+        upload_dir.display()
+    );
+}
+
+
+async fn fetch_server_files(
+    client: &reqwest::Client,
+    url: &str,
+    token: &str,
+    taken_after: &str,
+    taken_before: &str,
+) -> Result<HashSet<(String, u64)>, String> {
+    const PAGE_SIZE: u32 = 1000;
+    const MAX_PAGES: u32 = 100;
+
+    let mut found = HashSet::new();
+    let mut without_size = 0usize;
+    let mut page = 1u32;
+    loop {
+        let body = json!({
+            "takenAfter": taken_after,
+            "takenBefore": taken_before,
+            "size": PAGE_SIZE,
+            "page": page,
+        });
+        let response = client
+            .post(format!("{url}/api/search/metadata"))
+            .header("x-api-key", token)
+            .json(&body)
+            .send()
+            .await
+            .map_err(|e| format!("page {page}: {e}"))?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(format!("page {page}: server answered {status}"));
+        }
+        let json: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| format!("page {page}: could not parse the response: {e}"))?;
+
+        for item in json["assets"]["items"].as_array().into_iter().flatten() {
+            let Some(name) = item["originalFileName"].as_str() else {
+                continue;
+            };
+            // Without a size we can't confirm it's the same file, so it is
+            // left out and the local file stays pending.
+            match item["exifInfo"]["fileSizeInByte"].as_u64() {
+                Some(size) => {
+                    found.insert((name.to_lowercase(), size));
+                }
+                None => without_size += 1,
+            }
+        }
+
+        // `nextPage` is null on the last page; Immich sends it as a string.
+        let next_page = &json["assets"]["nextPage"];
+        if next_page.is_null() {
+            break;
+        }
+        let next = next_page
+            .as_str()
+            .and_then(|p| p.parse::<u32>().ok())
+            .or_else(|| next_page.as_u64().map(|n| n as u32));
+        match next {
+            Some(next) if next > page && page < MAX_PAGES => page = next,
+            _ => return Err(format!("unexpected nextPage {next_page} after page {page}")),
+        }
+    }
+
+    if without_size > 0 {
+        log::warn!(
+            "[sync] {without_size} server asset(s) came back without exifInfo.fileSizeInByte and were ignored"
+        );
+    }
+    log::debug!("[sync] fetched {} server file(s) over {page} page(s)", found.len());
+    Ok(found)
 }
