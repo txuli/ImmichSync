@@ -269,7 +269,9 @@ pub fn run() {
         .on_window_event(|window, event| match event {
             WindowEvent::CloseRequested { api, .. } => {
                 api.prevent_close();
-                window.hide().unwrap();
+                if let Err(err) = window.hide() {
+                    log::error!("[window] failed to hide window on close: {err}");
+                }
             }
             _ => {}
         })

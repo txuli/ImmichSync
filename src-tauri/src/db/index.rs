@@ -16,7 +16,11 @@ pub struct DeviceRow {
 }
 
 pub async fn get_pool(app: &AppHandle) -> Result<SqlitePool, sqlx::Error> {
-    let db_path = app.path().app_data_dir().unwrap().join("immichsync.db");
+    let app_data_dir = app.path().app_data_dir().map_err(|err| {
+        log::error!("[db] could not resolve app data dir: {err}");
+        sqlx::Error::Configuration(err.to_string().into())
+    })?;
+    let db_path = app_data_dir.join("immichsync.db");
     SqlitePool::connect(&format!("sqlite:{}", db_path.display()))
         .await
         .map_err(|err| {

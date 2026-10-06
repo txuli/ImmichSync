@@ -342,7 +342,16 @@ pub async fn prev_scan_files(url: String, token: String, path: String) {
     {
         if let Ok(metadata) = entry.metadata() {
             if metadata.is_file() && metadata.len() > 1000 {
-                let created: SystemTime = metadata.modified().unwrap();
+                let created: SystemTime = match metadata.modified() {
+                    Ok(time) => time,
+                    Err(err) => {
+                        log::warn!(
+                            "[sync] skipping {}: could not read modified time: {err}",
+                            entry.path().display()
+                        );
+                        continue;
+                    }
+                };
                 let file = Files {
                     name: entry.file_name().display().to_string(),
                     path: entry.path().display().to_string(),
