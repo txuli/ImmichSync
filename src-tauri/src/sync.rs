@@ -2,18 +2,16 @@ use crate::emit_sync_status::emit_sync_status;
 use crate::models::ValidResponse;
 use chrono::{DateTime, Duration, Local, NaiveTime, Utc};
 use serde_json::json;
-use std::time::SystemTime;
-use std::{
-    collections::{ HashSet},
-    vec,
-};
+use tauri::utils::acl::Number;
 use std::path::{Path, PathBuf};
-use tauri::{ AppHandle, Manager};
+use std::result;
+use std::time::SystemTime;
+use std::{collections::HashSet, vec};
+use tauri::{AppHandle, Manager};
 use tauri_plugin_log::log;
 use tauri_plugin_shell::ShellExt;
 use tauri_plugin_store::StoreExt;
 use walkdir::WalkDir;
-
 #[derive(Debug)]
 pub enum SyncError {
     StoreError(String),
@@ -47,7 +45,19 @@ pub async fn sync_assets(
         .get("token")
         .and_then(|v| v.as_str().map(str::to_string))
         .ok_or_else(|| "missing token in settings".to_string())?;
-    prev_scan_files(url.clone(), token.clone(), path.clone()).await;
+    let (staged, failed) = prev_scan_files(url.clone(), token.clone(), path.clone()).await;
+    let staging_warning = (failed > 0)
+        .then(|| format!("{failed} file(s) could not be prepared for upload, see the log"));
+    // Without staged files `<path>/upload` may not exist, and immich-go
+    // fails on a missing folder, so there's nothing to run.
+    if staged.is_empty() {
+        log::info!("[sync] nothing to upload for path={path}, skipping immich-go");
+        return Ok(ValidResponse {
+            valid: true,
+            type_acc: "sync".to_string(),
+            warning: staging_warning,
+        });
+    }
     crate::notification::new_sync::notify_sync_started(&app, &album_name);
     let sidecar = app
         .shell()
@@ -63,6 +73,8 @@ pub async fn sync_assets(
     // trusting the process' overall exit status.
     let log_path = upload_log_path(&app, &disk_name)?;
     let complete_path = format!("{path}/upload");
+    // Files marked completed by an earlier sync are already on the server.
+    let ban_completed = format!("*{COMPLETED_SUFFIX}.*");
     let output = sidecar
         .args([
             "upload",
@@ -80,6 +92,8 @@ pub async fn sync_assets(
             &log_path.to_string_lossy(),
             "--log-type",
             "text",
+            "--ban-file",
+            &ban_completed,
             &complete_path,
         ])
         .output()
@@ -108,6 +122,7 @@ pub async fn sync_assets(
         })
     } else {
         log::info!("[sync] immich-go upload succeeded for path={path} album={album_name}");
+        std::fs::remove_dir(complete_path).map_err(|e| e.to_string())?;
         None
     };
 
@@ -116,27 +131,27 @@ pub async fn sync_assets(
         .and_then(|v| v.get("value").and_then(|b| b.as_bool()))
         .unwrap_or(false);
 
-    if remove_after_upload {
-        match std::fs::read_to_string(&log_path) {
-            Ok(log_contents) => {
-                let confirmed = parse_confirmed_uploads(&log_contents);
-                log::info!(
-                    "[sync] {} file(s) confirmed uploaded by immich-go for path={path}",
-                    confirmed.len()
-                );
-                if let Err(err) = delete_confirmed_media_files(&path, &confirmed) {
-                    log::error!("[sync] failed to remove uploaded assets from {path}: {err}");
-                }
-            }
-            Err(err) => {
-                // Without the log we can't tell what actually made it to the
-                // server, so we deliberately skip deletion rather than fall
-                // back to deleting everything.
-                log::error!(
-                    "[sync] could not read immich-go log at {}, skipping asset removal: {err}",
-                    log_path.display()
-                );
-            }
+    match std::fs::read_to_string(&log_path) {
+        Ok(log_contents) => {
+            let confirmed = parse_confirmed_uploads(&log_contents);
+            log::info!(
+                "[sync] {} file(s) confirmed uploaded by immich-go for path={path}",
+                confirmed.len()
+            );
+            mark_completed(
+                Path::new(&complete_path),
+                &staged,
+                &confirmed,
+                remove_after_upload,
+            );
+        }
+        Err(err) => {
+            // Without the log we can't tell what actually made it to the
+            // server, so nothing is marked completed or removed.
+            log::error!(
+                "[sync] could not read immich-go log at {}, skipping completion: {err}",
+                log_path.display()
+            );
         }
     }
     if let Err(err) = std::fs::remove_file(&log_path) {
@@ -149,7 +164,7 @@ pub async fn sync_assets(
     Ok(ValidResponse {
         valid: true,
         type_acc: "sync".to_string(),
-        warning,
+        warning: warning.or(staging_warning),
     })
 }
 
@@ -158,7 +173,7 @@ const MEDIA_EXTENSIONS: &[&str] = &[
     "arw", "dng", "raf", "orf", "rw2", "mp4", "mov", "avi", "mkv", "m4v", "3gp", "webm",
 ];
 
-/// Whether `path` has one of the `MEDIA_EXTENSIONS` (case-insensitive).
+// Whether `path` has one of the `MEDIA_EXTENSIONS` (case-insensitive).
 fn is_media_file(path: &Path) -> bool {
     path.extension()
         .and_then(|ext| ext.to_str())
@@ -166,12 +181,12 @@ fn is_media_file(path: &Path) -> bool {
         .unwrap_or(false)
 }
 
-/// Best-effort count (and combined size) of media files found under `path`.
-///
-/// This is computed locally by walking the folder after a sync — immich-go
-/// itself doesn't report structured upload counts, so this can include files
-/// immich-go skipped as duplicates on a re-sync. It's a reasonable proxy for
-/// "how much this device has to offer", not an exact server-side total.
+// Best-effort count (and combined size) of media files found under `path`.
+//
+// This is computed locally by walking the folder after a sync — immich-go
+// itself doesn't report structured upload counts, so this can include files
+// immich-go skipped as duplicates on a re-sync. It's a reasonable proxy for
+// "how much this device has to offer", not an exact server-side total.
 pub fn scan_media_stats(path: &str) -> (i64, i64) {
     let mut count = 0i64;
     let mut size = 0i64;
@@ -200,8 +215,8 @@ pub fn scan_media_stats(path: &str) -> (i64, i64) {
     (count, size)
 }
 
-/// Builds a unique path (in the app's data dir) for immich-go's `--log-file`
-/// for this sync run, creating the containing directory if needed.
+// Builds a unique path (in the app's data dir) for immich-go's `--log-file`
+// for this sync run, creating the containing directory if needed.
 fn upload_log_path(app: &AppHandle, disk_name: &str) -> Result<std::path::PathBuf, String> {
     let dir = app
         .path()
@@ -220,27 +235,27 @@ fn upload_log_path(app: &AppHandle, disk_name: &str) -> Result<std::path::PathBu
     Ok(dir.join(file_name))
 }
 
-/// Event markers from immich-go's per-file log lines (see
-/// https://github.com/simulot/immich-go internal/fileevent) that mean the
-/// local file's content is confirmed present on the server: either just
-/// uploaded, already there as a duplicate, or it replaced a lower-quality
-/// version server-side. Anything else (errors, filtered/discarded files,
-/// ...) is left untouched.
+// Event markers from immich-go's per-file log lines (see
+// https://github.com/simulot/immich-go internal/fileevent) that mean the
+// local file's content is confirmed present on the server: either just
+// uploaded, already there as a duplicate, or it replaced a lower-quality
+// version server-side. Anything else (errors, filtered/discarded files,
+// ...) is left untouched.
 const CONFIRMED_UPLOAD_MARKERS: &[&str] = &[
     "uploaded successfully",
     "server has duplicate",
     "server asset upgraded",
 ];
 
-/// Parses immich-go's `--log-type text` log and returns the set of local
-/// file paths (relative to the synced folder, forward-slash separated, e.g.
-/// `sub/photo.jpg`) it confirmed are present on the server.
-///
-/// Each relevant line looks like:
-/// `2026-01-01 12:00:00 INF uploaded successfully file=<folder>:<relpath>`
-/// where `file=...` is the last field on the line, so everything after
-/// `file=` (up to the `:` separating immich-go's internal folder alias from
-/// the relative path) is taken as-is, spaces included.
+// Parses immich-go's `--log-type text` log and returns the set of local
+// file paths (relative to the upload folder, forward-slash separated, e.g.
+// `sub/photo.jpg`) it confirmed are present on the server.
+//
+// Each relevant line looks like:
+// `2026-01-01 12:00:00 INF uploaded successfully file=<folder>:<relpath>`
+// where `file=...` is the last field on the line, so everything after
+// `file=` (up to the `:` separating immich-go's internal folder alias from
+// the relative path) is taken as-is, spaces included.
 fn parse_confirmed_uploads(log_contents: &str) -> HashSet<String> {
     let mut confirmed = HashSet::new();
     for line in log_contents.lines() {
@@ -266,64 +281,14 @@ fn parse_confirmed_uploads(log_contents: &str) -> HashSet<String> {
     confirmed
 }
 
-/// Deletes only the media files under `path` whose relative path is in
-/// `confirmed` — the set immich-go's log reported as actually present on the
-/// server (uploaded or already there). Files it skipped, filtered out, or
-/// failed to upload are left in place. Subdirectories are walked but left in
-/// place — only files are removed.
-fn delete_confirmed_media_files(path: &str, confirmed: &HashSet<String>) -> Result<(), String> {
-    let base = std::path::Path::new(path);
-    let mut stack = vec![base.to_path_buf()];
-    let mut errors = Vec::new();
-    let mut deleted = 0usize;
-
-    while let Some(dir) = stack.pop() {
-        let entries = match std::fs::read_dir(&dir) {
-            Ok(entries) => entries,
-            Err(err) => {
-                errors.push(format!("{}: {err}", dir.display()));
-                continue;
-            }
-        };
-        for entry in entries.flatten() {
-            let entry_path = entry.path();
-            if entry_path.is_dir() {
-                stack.push(entry_path);
-                continue;
-            }
-            if !is_media_file(&entry_path) {
-                continue;
-            }
-            let relpath = match entry_path.strip_prefix(base) {
-                Ok(rel) => rel
-                    .components()
-                    .map(|c| c.as_os_str().to_string_lossy().into_owned())
-                    .collect::<Vec<_>>()
-                    .join("/"),
-                Err(_) => continue,
-            };
-            if !confirmed.contains(&relpath) {
-                continue;
-            }
-            if let Err(err) = std::fs::remove_file(&entry_path) {
-                errors.push(format!("{}: {err}", entry_path.display()));
-            } else {
-                deleted += 1;
-            }
-        }
-    }
-
-    log::info!("[sync] removed {deleted} confirmed-uploaded file(s) from {path}");
-
-    if errors.is_empty() {
-        Ok(())
-    } else {
-        log::error!("{}", errors.join("; "));
-        Err(errors.join("; "))
-    }
+// A media file staged in the upload folder, next to the original it was
+// linked or copied from.
+pub struct Staged {
+    upload: PathBuf,
+    original: PathBuf,
 }
 
-/// A local media file considered for upload by `prev_scan_files`.
+// A local media file considered for upload by `prev_scan_files`.
 struct LocalFile {
     name: String,
     path: PathBuf,
@@ -331,18 +296,25 @@ struct LocalFile {
     modified: Option<SystemTime>,
 }
 
-/// Moves every media file under `path` that the server doesn't already have
-/// into `<path>/upload`, the only folder immich-go is pointed at, so files
-/// already in Immich are never handed to it again.
-///
-/// Two checks run in order: a cheap name + size match against assets taken
-/// around the same dates, then a SHA1 checksum check for whatever is left.
-/// If a check fails the files it couldn't clear stay pending: immich-go
-/// re-checks them server-side anyway, so the worst case is extra work.
-pub async fn prev_scan_files(url: String, token: String, path: String) {
+// Stages every media file under `path` that the server doesn't already have
+// in `<path>/upload`, the only folder immich-go is pointed at, so files
+// already in Immich are never handed to it again. Files are hard-linked (or
+// copied), never moved: the originals stay where they are.
+//
+// Two checks run in order: a cheap name + size match against assets taken
+// around the same dates, then a SHA1 checksum check for whatever is left.
+// If a check fails the files it couldn't clear stay pending: immich-go
+// re-checks them server-side anyway, so the worst case is extra work.
+//
+// Returns the staged files and how many couldn't be staged. With nothing
+// staged there is nothing for immich-go to do, and the folder may not exist.
+pub async fn prev_scan_files(url: String, token: String, path: String) -> (Vec<Staged>, usize) {
     log::debug!("reading dir");
     let mut files_list: Vec<LocalFile> = vec![];
-    for entry in WalkDir::new(&path).into_iter().filter_map(|entry| entry.ok()) {
+    for entry in WalkDir::new(&path)
+        .into_iter()
+        .filter_map(|entry| entry.ok())
+    {
         if !entry.file_type().is_file() || !is_media_file(entry.path()) {
             continue;
         }
@@ -358,9 +330,24 @@ pub async fn prev_scan_files(url: String, token: String, path: String) {
             });
         }
     }
+    let root = Path::new(&path);
+    let upload_dir = root.join("upload");
+    // A file in the upload folder that is the staged link or copy of an
+    // original elsewhere is handled through that original, and one marked
+    // completed is already on the server. Anything else in there was moved in
+    // by an older version and is uploaded as it is.
+    let staged_paths: HashSet<PathBuf> = files_list
+        .iter()
+        .filter(|f| !f.path.starts_with(&upload_dir))
+        .filter_map(|f| staged_path(root, &upload_dir, &f.path))
+        .collect();
+    files_list.retain(|f| {
+        !staged_paths.contains(&f.path)
+            && !(f.path.starts_with(&upload_dir) && is_completed(&f.path))
+    });
     if files_list.is_empty() {
-        log::debug!("[sync] prev_scan_files found no media files");
-        return;
+        log::debug!("[sync] prev_scan_files found no media files to check");
+        return (vec![], 0);
     }
 
     let client = reqwest::Client::new();
@@ -369,8 +356,9 @@ pub async fn prev_scan_files(url: String, token: String, path: String) {
     // A local file counts as already uploaded if the server has one with the
     // same name (case-insensitive, like Windows) *and* the same size.
     match fetch_server_files_near(&client, &url, &token, &files_list).await {
-        Ok(server_files) => files_list
-            .retain(|file| !server_files.contains(&(file.name.to_lowercase(), file.size))),
+        Ok(server_files) => {
+            files_list.retain(|file| !server_files.contains(&(file.name.to_lowercase(), file.size)))
+        }
         Err(err) => log::warn!("[sync] name/size check skipped: {err}"),
     }
     let by_name = total - files_list.len();
@@ -393,62 +381,173 @@ pub async fn prev_scan_files(url: String, token: String, path: String) {
         log::debug!("[sync] pending: {} ", file.path.display());
     }
 
-    let root = Path::new(&path);
-    let upload_dir = root.join("upload");
-    let (mut moved, mut already_there, mut failed) = (0usize, 0usize, 0usize);
+    let mut staged = vec![];
+    let (mut linked, mut failed) = (0usize, 0usize);
     for file in &files_list {
         if file.path.starts_with(&upload_dir) {
-            already_there += 1;
+            staged.push(Staged {
+                upload: file.path.clone(),
+                original: file.path.clone(),
+            });
             continue;
         }
-        if let Err(err) = move_into_upload(root, &upload_dir, &file.path) {
-            log::error!("[sync] could not move {}: {err}", file.path.display());
-            failed += 1;
+        let Some(upload) = staged_path(root, &upload_dir, &file.path) else {
             continue;
+        };
+        // Already staged by an earlier sync that didn't get it uploaded.
+        if !upload.exists() {
+            if let Err(err) = link_or_copy(&file.path, &upload) {
+                log::error!("[sync] could not stage {}: {err}", file.path.display());
+                failed += 1;
+                continue;
+            }
+            linked += 1;
         }
-        moved += 1;
         // XMP sidecars hold edits and metadata immich-go reads from next to
-        // the photo, so they follow it into the upload folder.
-        for sidecar in sidecar_paths(&file.path) {
-            if sidecar.is_file() {
-                if let Err(err) = move_into_upload(root, &upload_dir, &sidecar) {
-                    log::warn!("[sync] could not move sidecar {}: {err}", sidecar.display());
+        // the photo, so they're staged next to it under the matching name.
+        for (sidecar, staged_sidecar) in sidecar_paths(&file.path)
+            .into_iter()
+            .zip(sidecar_paths(&upload))
+        {
+            if sidecar.is_file() && !staged_sidecar.exists() {
+                if let Err(err) = link_or_copy(&sidecar, &staged_sidecar) {
+                    log::warn!("[sync] could not stage sidecar {}: {err}", sidecar.display());
                 }
             }
         }
+        staged.push(Staged {
+            upload,
+            original: file.path.clone(),
+        });
     }
     log::info!(
-        "[sync] prev_scan_files: moved {moved} file(s) to {}, {already_there} already there, {failed} failed",
+        "[sync] prev_scan_files: {} file(s) staged in {} ({linked} new), {failed} failed",
+        staged.len(),
+        upload_dir.display()
+    );
+    (staged, failed)
+}
+
+// Where `original` is staged inside `upload_dir`: the same position relative
+// to `root`. This is the one place to change the name immich-go uploads it as.
+fn staged_path(root: &Path, upload_dir: &Path, original: &Path) -> Option<PathBuf> {
+    original
+        .strip_prefix(root)
+        .ok()
+        .map(|relative| upload_dir.join(relative))
+}
+
+// Hard-links `original` at `staged`, so immich-go reads it under its own name
+// while the original stays untouched. Unlike a symlink on Windows, a hard
+// link needs no special privilege. Filesystems without hard links (FAT32 and
+// exFAT, usual on SD cards and USB sticks) get a copy instead.
+fn link_or_copy(original: &Path, staged: &Path) -> Result<(), String> {
+    if let Some(parent) = staged.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    if let Err(err) = std::fs::hard_link(original, staged) {
+        log::debug!(
+            "[sync] could not hard-link {}, copying it instead: {err}",
+            original.display()
+        );
+        std::fs::copy(original, staged).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
+// `path` relative to `base`, forward-slash separated, as immich-go logs it.
+fn relative_slash_path(base: &Path, path: &Path) -> Option<String> {
+    let relative = path.strip_prefix(base).ok()?;
+    Some(
+        relative
+            .components()
+            .map(|c| c.as_os_str().to_string_lossy().into_owned())
+            .collect::<Vec<_>>()
+            .join("/"),
+    )
+}
+
+// Appended to a staged file's name once immich-go confirms it's on the
+// server: `photo.jpg` becomes `photo_completed.jpg`.
+const COMPLETED_SUFFIX: &str = "_completed";
+
+// `path` with `COMPLETED_SUFFIX` added before its extension.
+fn completed_path(path: &Path) -> PathBuf {
+    let mut name = path.file_stem().unwrap_or_default().to_os_string();
+    name.push(COMPLETED_SUFFIX);
+    if let Some(ext) = path.extension() {
+        name.push(".");
+        name.push(ext);
+    }
+    path.with_file_name(name)
+}
+
+// Whether `path` was already marked by `completed_path`.
+fn is_completed(path: &Path) -> bool {
+    path.file_stem()
+        .map(|stem| stem.to_string_lossy().ends_with(COMPLETED_SUFFIX))
+        .unwrap_or(false)
+}
+
+// Renames the staged files (and their sidecars) immich-go confirmed are on
+// the server to their completed name, so they stay in the upload folder as a
+// record, and removes their originals when `remove_originals` is set.
+// Anything it didn't confirm keeps its name for the next sync to retry.
+fn mark_completed(
+    upload_dir: &Path,
+    staged: &[Staged],
+    confirmed: &HashSet<String>,
+    remove_originals: bool,
+) {
+    let (mut completed, mut removed) = (0usize, 0usize);
+    for file in staged {
+        let Some(relpath) = relative_slash_path(upload_dir, &file.upload) else {
+            continue;
+        };
+        if !confirmed.contains(&relpath) {
+            continue;
+        }
+        if remove_originals {
+            match std::fs::remove_file(&file.original) {
+                Ok(()) => removed += 1,
+                Err(err) => log::error!(
+                    "[sync] could not remove uploaded {}: {err}",
+                    file.original.display()
+                ),
+            }
+            // A file moved in by an older version is its own original.
+            if file.upload == file.original {
+                continue;
+            }
+        }
+        let marked = completed_path(&file.upload);
+        let renames = std::iter::once((file.upload.clone(), marked.clone()))
+            .chain(sidecar_paths(&file.upload).into_iter().zip(sidecar_paths(&marked)));
+        for (from, to) in renames {
+            if from.is_file() {
+                if let Err(err) = std::fs::rename(&from, &to) {
+                    log::error!("[sync] could not mark {} as completed: {err}", from.display());
+                }
+            }
+        }
+        completed += 1;
+    }
+    log::info!(
+        "[sync] marked {completed} file(s) completed in {}, removed {removed} uploaded original(s)",
         upload_dir.display()
     );
 }
 
-/// Moves `source` to the same relative position under `upload_dir`.
-fn move_into_upload(root: &Path, upload_dir: &Path, source: &Path) -> Result<(), String> {
-    let relative = source
-        .strip_prefix(root)
-        .map_err(|_| "not under the synced folder".to_string())?;
-    let destination = upload_dir.join(relative);
-    // `rename` silently replaces an existing file on Windows.
-    if destination.exists() {
-        return Err(format!("{} already exists", destination.display()));
-    }
-    if let Some(parent) = destination.parent() {
-        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
-    }
-    std::fs::rename(source, &destination).map_err(|e| e.to_string())
-}
-
-/// The two usual sidecar names for `media`: `photo.jpg.xmp` and `photo.xmp`.
+// The two usual sidecar names for `media`: `photo.jpg.xmp` and `photo.xmp`.
 fn sidecar_paths(media: &Path) -> [PathBuf; 2] {
     let mut appended = media.as_os_str().to_owned();
     appended.push(".xmp");
     [PathBuf::from(appended), media.with_extension("xmp")]
 }
 
-/// Searches the server for assets taken between the oldest and newest local
-/// modification time (padded by a day on each side) and returns their
-/// `(lowercased name, size)` pairs.
+// Searches the server for assets taken between the oldest and newest local
+// modification time (padded by a day on each side) and returns their
+// `(lowercased name, size)` pairs.
 async fn fetch_server_files_near(
     client: &reqwest::Client,
     url: &str,
@@ -492,8 +591,8 @@ async fn fetch_server_files_near(
     fetch_server_files(client, url, token, &after_utc, &before_utc).await
 }
 
-/// Hashes `files` and asks Immich which of them it already stores, returning
-/// their local paths. Files that can't be read are left out (stay pending).
+// Hashes `files` and asks Immich which of them it already stores, returning
+// their local paths. Files that can't be read are left out (stay pending).
 async fn find_duplicates_by_checksum(
     client: &reqwest::Client,
     url: &str,
@@ -567,7 +666,7 @@ async fn find_duplicates_by_checksum(
     Ok(on_server)
 }
 
-/// Hex-encoded SHA1 of the file's contents, the checksum Immich stores.
+// Hex-encoded SHA1 of the file's contents, the checksum Immich stores.
 fn sha1_file(path: &Path) -> std::io::Result<String> {
     use sha1::{Digest, Sha1};
     let mut file = std::fs::File::open(path)?;
@@ -575,7 +674,6 @@ fn sha1_file(path: &Path) -> std::io::Result<String> {
     std::io::copy(&mut file, &mut hasher)?;
     Ok(hex::encode(hasher.finalize()))
 }
-
 
 async fn fetch_server_files(
     client: &reqwest::Client,
@@ -650,6 +748,9 @@ async fn fetch_server_files(
             "[sync] {without_size} server asset(s) came back without exifInfo.fileSizeInByte and were ignored"
         );
     }
-    log::debug!("[sync] fetched {} server file(s) over {page} page(s)", found.len());
+    log::debug!(
+        "[sync] fetched {} server file(s) over {page} page(s)",
+        found.len()
+    );
     Ok(found)
 }
