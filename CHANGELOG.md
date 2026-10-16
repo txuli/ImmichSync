@@ -6,6 +6,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (pre-1.0, so minor bumps may include breaking changes).
 
+## [1.0.1] -2026-10-16
+
+### Added
+
+- Pre-upload deduplication: before immich-go runs, `sync_assets` walks the device and skips every media file the server already has, first by a cheap name + size match against assets taken around the same dates (`/api/search/metadata`), then by SHA1 checksum (`/api/assets/bulk-upload-check`) for whatever is left. Files under 1 KB are ignored. If either check fails, the affected files simply stay pending and immich-go re-checks them server-side.
+- Pending files are staged in a `<device>/upload` folder (hard-linked, or copied on filesystems without hard links such as FAT32/exFAT) and immich-go is pointed only at that folder; the originals are never moved. XMP sidecars (`photo.jpg.xmp` / `photo.xmp`) are staged next to their photo.
+- Per-file upload confirmation: immich-go now writes a text log (`--log-file`) to `<app data>/sync-logs/`, which is parsed after the run to learn exactly which files the server confirmed (uploaded, duplicate, or upgraded). Confirmed staged files are renamed to `*_completed.*` and banned from later runs (`--ban-file`), so an interrupted sync resumes where it left off.
+- Partial-success syncs: when some files fail but the rest upload, the sync is reported as a success with a warning instead of a failure — new "Sync complete with some errors" toast, an amber "synced with some errors" state and "with errors" badge on the Dashboard, and an "Uploaded with some errors" state on the Manual upload page. `ValidResponse` gains an optional `warning` field.
+- Structured logging via `tauri-plugin-log` (`log:default` capability) to the app's log dir (`immichsync.log`) and stdout at debug level, replacing `eprintln!`/`println!` and the ad-hoc `immichsync-debug.log` temp file. Auth, settings, DB, scan, sync, tray and notification paths are all logged.
+- Database migrations 3 and 4: new `mediaType` table seeded with the supported extensions, and `devices.idExtension` referencing it (groundwork for a per-device "Allowed extensions" setting; the UI is not enabled yet).
+
+### Changed
+
+- immich-go now runs with `--on-errors continue`, so one bad file no longer aborts the whole batch.
+- `sync_assets` takes a new required `diskName` argument and emits the `syncing` status itself; `emit_sync_status` moved into its own module instead of being duplicated in `known_device.rs` and `new_device.rs`.
+- If nothing is pending after deduplication, immich-go is skipped entirely and the sync returns immediately.
+- "Remove Assets from SD Card" now deletes only the originals immich-go confirmed are on the server (per the upload log), instead of every media file in the folder.
+- Device-connected notifications and direct syncs are only triggered once Immich credentials have been saved.
+- The new-device form no longer inserts a duplicate row (or re-syncs) when the device is already registered, and shows the real error message instead of a fixed "No credentials found" text.
+- `dialog:allow-open` added to the desktop capabilities so the Manual upload folder picker is permitted.
+
+### Fixed
+
+- `get_pool` no longer panics when the app data directory can't be resolved, and closing the window no longer panics if hiding it fails; both errors are logged instead.
+
 ## [1.0.0] - 2026-09-03
 
 ### Added
@@ -86,6 +111,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Run-on-startup and self-updating (GitHub Releases + `latest.json` manifest).
 - Config persistence via `tauri-plugin-store`.
 
+[Unreleased]: https://github.com/txuli/ImmichSync/compare/v1.0.0...HEAD
 [1.0.0]: https://github.com/txuli/ImmichSync/compare/v0.2.2...v1.0.0
 [0.2.2]: https://github.com/txuli/ImmichSync/compare/v0.2.1...v0.2.2
 [0.2.1]: https://github.com/txuli/ImmichSync/compare/v0.1.3...v0.2.1
