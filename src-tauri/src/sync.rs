@@ -122,7 +122,7 @@ pub async fn sync_assets(
         })
     } else {
         log::info!("[sync] immich-go upload succeeded for path={path} album={album_name}");
-        std::fs::remove_dir(complete_path).map_err(|e| e.to_string())?;
+        std::fs::remove_dir(&complete_path).map_err(|e| e.to_string())?;
         None
     };
 
