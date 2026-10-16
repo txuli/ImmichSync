@@ -2121,9 +2121,11 @@ name = "immichsync"
 version = "1.0.0"
 dependencies = [
  "chrono",
+ "hex",
  "reqwest",
  "serde",
  "serde_json",
+ "sha1",
  "sqlx",
  "sysinfo",
  "tauri",

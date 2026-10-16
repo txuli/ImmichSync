@@ -7,7 +7,7 @@ use std::{
     collections::{ HashSet},
     vec,
 };
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tauri::{ AppHandle, Manager};
 use tauri_plugin_log::log;
 use tauri_plugin_shell::ShellExt;
@@ -158,6 +158,14 @@ const MEDIA_EXTENSIONS: &[&str] = &[
     "arw", "dng", "raf", "orf", "rw2", "mp4", "mov", "avi", "mkv", "m4v", "3gp", "webm",
 ];
 
+/// Whether `path` has one of the `MEDIA_EXTENSIONS` (case-insensitive).
+fn is_media_file(path: &Path) -> bool {
+    path.extension()
+        .and_then(|ext| ext.to_str())
+        .map(|ext| MEDIA_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
+        .unwrap_or(false)
+}
+
 /// Best-effort count (and combined size) of media files found under `path`.
 ///
 /// This is computed locally by walking the folder after a sync — immich-go
@@ -180,12 +188,7 @@ pub fn scan_media_stats(path: &str) -> (i64, i64) {
                 stack.push(entry_path);
                 continue;
             }
-            let is_media = entry_path
-                .extension()
-                .and_then(|ext| ext.to_str())
-                .map(|ext| MEDIA_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
-                .unwrap_or(false);
-            if is_media {
+            if is_media_file(&entry_path) {
                 count += 1;
                 if let Ok(meta) = entry.metadata() {
                     size += meta.len() as i64;
@@ -288,12 +291,7 @@ fn delete_confirmed_media_files(path: &str, confirmed: &HashSet<String>) -> Resu
                 stack.push(entry_path);
                 continue;
             }
-            let is_media = entry_path
-                .extension()
-                .and_then(|ext| ext.to_str())
-                .map(|ext| MEDIA_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
-                .unwrap_or(false);
-            if !is_media {
+            if !is_media_file(&entry_path) {
                 continue;
             }
             let relpath = match entry_path.strip_prefix(base) {
@@ -325,45 +323,145 @@ fn delete_confirmed_media_files(path: &str, confirmed: &HashSet<String>) -> Resu
     }
 }
 
+/// A local media file considered for upload by `prev_scan_files`.
+struct LocalFile {
+    name: String,
+    path: PathBuf,
+    size: u64,
+    modified: Option<SystemTime>,
+}
+
+/// Moves every media file under `path` that the server doesn't already have
+/// into `<path>/upload`, the only folder immich-go is pointed at, so files
+/// already in Immich are never handed to it again.
+///
+/// Two checks run in order: a cheap name + size match against assets taken
+/// around the same dates, then a SHA1 checksum check for whatever is left.
+/// If a check fails the files it couldn't clear stay pending: immich-go
+/// re-checks them server-side anyway, so the worst case is extra work.
 pub async fn prev_scan_files(url: String, token: String, path: String) {
     log::debug!("reading dir");
-    /* #[derive(Debug)] */
-    pub struct Files {
-        name: String,
-        path: String,
-        size: u64,
-        created_at: SystemTime,
+    let mut files_list: Vec<LocalFile> = vec![];
+    for entry in WalkDir::new(&path).into_iter().filter_map(|entry| entry.ok()) {
+        if !entry.file_type().is_file() || !is_media_file(entry.path()) {
+            continue;
+        }
+        let Ok(metadata) = entry.metadata() else {
+            continue;
+        };
+        if metadata.len() > 1000 {
+            files_list.push(LocalFile {
+                name: entry.file_name().to_string_lossy().into_owned(),
+                path: entry.path().to_path_buf(),
+                size: metadata.len(),
+                modified: metadata.modified().ok(),
+            });
+        }
     }
-    let mut files_list: Vec<Files> = vec![];
-    for entry in WalkDir::new(&path)
-        .into_iter()
-        
-        .filter_map(|entry| entry.ok())
-    {
-        if let Ok(metadata) = entry.metadata() {
-            if metadata.is_file() && metadata.len() > 1000 {
-                let created: SystemTime = metadata.modified().unwrap();
-                let file = Files {
-                    name: entry.file_name().display().to_string(),
-                    path: entry.path().display().to_string(),
-                    size: metadata.len(),
-                    created_at: created,
-                };
+    if files_list.is_empty() {
+        log::debug!("[sync] prev_scan_files found no media files");
+        return;
+    }
 
-                files_list.push(file);
-              
+    let client = reqwest::Client::new();
+    let total = files_list.len();
+
+    // A local file counts as already uploaded if the server has one with the
+    // same name (case-insensitive, like Windows) *and* the same size.
+    match fetch_server_files_near(&client, &url, &token, &files_list).await {
+        Ok(server_files) => files_list
+            .retain(|file| !server_files.contains(&(file.name.to_lowercase(), file.size))),
+        Err(err) => log::warn!("[sync] name/size check skipped: {err}"),
+    }
+    let by_name = total - files_list.len();
+
+    // The date window comes from modification times, which can be later than
+    // the EXIF date Immich searches by (copied or edited files), so anything
+    // left is hashed and checked by content, like immich-go itself does.
+    match find_duplicates_by_checksum(&client, &url, &token, &files_list).await {
+        Ok(on_server) => files_list.retain(|file| !on_server.contains(&file.path)),
+        Err(err) => log::warn!("[sync] checksum check failed, keeping files as pending: {err}"),
+    }
+    let by_checksum = total - by_name - files_list.len();
+
+    log::info!(
+        "[sync] prev_scan_files: {} of {total} file(s) already on the server ({by_name} by name/size, {by_checksum} by checksum), {} pending",
+        by_name + by_checksum,
+        files_list.len()
+    );
+    for file in &files_list {
+        log::debug!("[sync] pending: {} ({} bytes)", file.path.display(), file.size);
+    }
+
+    let root = Path::new(&path);
+    let upload_dir = root.join("upload");
+    let (mut moved, mut already_there, mut failed) = (0usize, 0usize, 0usize);
+    for file in &files_list {
+        if file.path.starts_with(&upload_dir) {
+            already_there += 1;
+            continue;
+        }
+        if let Err(err) = move_into_upload(root, &upload_dir, &file.path) {
+            log::error!("[sync] could not move {}: {err}", file.path.display());
+            failed += 1;
+            continue;
+        }
+        moved += 1;
+        // XMP sidecars hold edits and metadata immich-go reads from next to
+        // the photo, so they follow it into the upload folder.
+        for sidecar in sidecar_paths(&file.path) {
+            if sidecar.is_file() {
+                if let Err(err) = move_into_upload(root, &upload_dir, &sidecar) {
+                    log::warn!("[sync] could not move sidecar {}: {err}", sidecar.display());
+                }
             }
         }
     }
-    
+    log::info!(
+        "[sync] prev_scan_files: moved {moved} file(s) to {}, {already_there} already there, {failed} failed",
+        upload_dir.display()
+    );
+}
+
+/// Moves `source` to the same relative position under `upload_dir`.
+fn move_into_upload(root: &Path, upload_dir: &Path, source: &Path) -> Result<(), String> {
+    let relative = source
+        .strip_prefix(root)
+        .map_err(|_| "not under the synced folder".to_string())?;
+    let destination = upload_dir.join(relative);
+    // `rename` silently replaces an existing file on Windows.
+    if destination.exists() {
+        return Err(format!("{} already exists", destination.display()));
+    }
+    if let Some(parent) = destination.parent() {
+        std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+    }
+    std::fs::rename(source, &destination).map_err(|e| e.to_string())
+}
+
+/// The two usual sidecar names for `media`: `photo.jpg.xmp` and `photo.xmp`.
+fn sidecar_paths(media: &Path) -> [PathBuf; 2] {
+    let mut appended = media.as_os_str().to_owned();
+    appended.push(".xmp");
+    [PathBuf::from(appended), media.with_extension("xmp")]
+}
+
+/// Searches the server for assets taken between the oldest and newest local
+/// modification time (padded by a day on each side) and returns their
+/// `(lowercased name, size)` pairs.
+async fn fetch_server_files_near(
+    client: &reqwest::Client,
+    url: &str,
+    token: &str,
+    files: &[LocalFile],
+) -> Result<HashSet<(String, u64)>, String> {
     let (Some(oldest), Some(newest)) = (
-        files_list.iter().map(|f| f.created_at).min(),
-        files_list.iter().map(|f| f.created_at).max(),
+        files.iter().filter_map(|f| f.modified).min(),
+        files.iter().filter_map(|f| f.modified).max(),
     ) else {
-        log::debug!("[sync] prev_scan_files found no files, skipping search");
-        return;
+        return Err("no file has a modification time".to_string());
     };
-    
+
     let start_of_day = |time: SystemTime| {
         DateTime::<Local>::from(time)
             .date_naive()
@@ -375,16 +473,14 @@ pub async fn prev_scan_files(url: String, token: String, path: String) {
         start_of_day(oldest).map(|day| day + Duration::days(-1)),
         start_of_day(newest).map(|day| day + Duration::days(1)),
     ) else {
-        log::warn!("[sync] could not resolve local midnight for the date range");
-        return;
+        return Err("could not resolve local midnight for the date range".to_string());
     };
-    let client = reqwest::Client::new();
     let after_utc = taken_after.with_timezone(&Utc).to_rfc3339();
     let before_utc = taken_before.with_timezone(&Utc).to_rfc3339();
     let local_fmt = |time: DateTime<Local>| time.format("%Y-%m-%d %H:%M:%S %:z").to_string();
     log::info!(
-        "[sync] prev_scan_files sending {} file(s)\n  oldest file: {}\n  newest file: {}\n  takenAfter : {}  (UTC {})\n  takenBefore: {}  (UTC {})",
-        files_list.len(),
+        "[sync] prev_scan_files checking {} file(s)\n  oldest file: {}\n  newest file: {}\n  takenAfter : {}  (UTC {})\n  takenBefore: {}  (UTC {})",
+        files.len(),
         local_fmt(DateTime::<Local>::from(oldest)),
         local_fmt(DateTime::<Local>::from(newest)),
         local_fmt(taken_after),
@@ -393,74 +489,91 @@ pub async fn prev_scan_files(url: String, token: String, path: String) {
         before_utc,
     );
 
-    // If the search fails midway we can't tell what the server has, so every
-    // file stays pending: worst case immich-go re-checks (and skips) them.
-    let server_files =
-        match fetch_server_files(&client, &url, &token, &after_utc, &before_utc).await {
-            Ok(server_files) => server_files,
-            Err(err) => {
-                log::error!(
-                    "[sync] prev_scan_files search failed, keeping every file as pending: {err}"
-                );
-                return;
-            }
-        };
+    fetch_server_files(client, url, token, &after_utc, &before_utc).await
+}
 
-    // A local file counts as already uploaded only if the server has one with
-    // the same name (case-insensitive, like Windows) *and* the same size.
-    let total = files_list.len();
-    files_list.retain(|file| !server_files.contains(&(file.name.to_lowercase(), file.size)));
-    log::info!(
-        "[sync] prev_scan_files: {} of {total} file(s) already on the server, {} pending",
-        total - files_list.len(),
-        files_list.len()
-    );
-    for file in &files_list {
-        log::debug!("[sync] pending: {} ({} bytes)", file.path, file.size);
+/// Hashes `files` and asks Immich which of them it already stores, returning
+/// their local paths. Files that can't be read are left out (stay pending).
+async fn find_duplicates_by_checksum(
+    client: &reqwest::Client,
+    url: &str,
+    token: &str,
+    files: &[LocalFile],
+) -> Result<HashSet<PathBuf>, String> {
+    const CHUNK_SIZE: usize = 500;
+
+    let mut on_server = HashSet::new();
+    if files.is_empty() {
+        return Ok(on_server);
     }
 
-   
-    let root = Path::new(&path);
-    let upload_dir = root.join("upload");
-    let (mut moved, mut already_there, mut failed) = (0usize, 0usize, 0usize);
-    for file in &files_list {
-        let source = Path::new(&file.path);
-        if source.starts_with(&upload_dir) {
-            already_there += 1;
-            continue;
+    // Hashing reads every byte of every file, so it runs off the async runtime.
+    let paths: Vec<PathBuf> = files.iter().map(|f| f.path.clone()).collect();
+    let hashed = tokio::task::spawn_blocking(move || {
+        paths
+            .into_iter()
+            .filter_map(|path| match sha1_file(&path) {
+                Ok(checksum) => Some((path, checksum)),
+                Err(err) => {
+                    log::warn!("[sync] could not hash {}: {err}", path.display());
+                    None
+                }
+            })
+            .collect::<Vec<_>>()
+    })
+    .await
+    .map_err(|e| format!("hashing task failed: {e}"))?;
+
+    for chunk in hashed.chunks(CHUNK_SIZE) {
+        // The ids only need to be unique within one request, so the index
+        // into the chunk is used to map results back to local paths.
+        let assets: Vec<_> = chunk
+            .iter()
+            .enumerate()
+            .map(|(i, (_, checksum))| json!({ "id": i.to_string(), "checksum": checksum }))
+            .collect();
+        let response = client
+            .post(format!("{url}/api/assets/bulk-upload-check"))
+            .header("x-api-key", token)
+            .json(&json!({ "assets": assets }))
+            .send()
+            .await
+            .map_err(|e| e.to_string())?;
+        let status = response.status();
+        if !status.is_success() {
+            return Err(format!("server answered {status}"));
         }
-        let Ok(relative) = source.strip_prefix(root) else {
-            failed += 1;
-            continue;
-        };
-        let destination = upload_dir.join(relative);
-        // `rename` silently replaces an existing file on Windows.
-        if destination.exists() {
-            log::warn!(
-                "[sync] not moving {}: {} already exists",
-                source.display(),
-                destination.display()
-            );
-            failed += 1;
-            continue;
-        }
-        let result = match destination.parent() {
-            Some(parent) => std::fs::create_dir_all(parent),
-            None => Ok(()),
-        }
-        .and_then(|_| std::fs::rename(source, &destination));
-        match result {
-            Ok(()) => moved += 1,
-            Err(err) => {
-                log::error!("[sync] could not move {}: {err}", source.display());
-                failed += 1;
+        let json: serde_json::Value = response
+            .json()
+            .await
+            .map_err(|e| format!("could not parse the response: {e}"))?;
+
+        for result in json["results"].as_array().into_iter().flatten() {
+            if result["action"].as_str() != Some("reject")
+                || result["reason"].as_str() != Some("duplicate")
+            {
+                continue;
             }
+            let Some((path, _)) = result["id"]
+                .as_str()
+                .and_then(|id| id.parse::<usize>().ok())
+                .and_then(|i| chunk.get(i))
+            else {
+                continue;
+            };
+            on_server.insert(path.clone());
         }
     }
-    log::info!(
-        "[sync] prev_scan_files: moved {moved} file(s) to {}, {already_there} already there, {failed} failed",
-        upload_dir.display()
-    );
+    Ok(on_server)
+}
+
+/// Hex-encoded SHA1 of the file's contents, the checksum Immich stores.
+fn sha1_file(path: &Path) -> std::io::Result<String> {
+    use sha1::{Digest, Sha1};
+    let mut file = std::fs::File::open(path)?;
+    let mut hasher = Sha1::new();
+    std::io::copy(&mut file, &mut hasher)?;
+    Ok(hex::encode(hasher.finalize()))
 }
 
 
@@ -483,6 +596,9 @@ async fn fetch_server_files(
             "takenBefore": taken_before,
             "size": PAGE_SIZE,
             "page": page,
+            // Without this Immich omits `exifInfo`, so no asset has a size
+            // and nothing would ever match a local file.
+            "withExif": true,
         });
         let response = client
             .post(format!("{url}/api/search/metadata"))
