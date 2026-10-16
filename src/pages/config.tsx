@@ -5,11 +5,11 @@ import { useEffect, useState, type SyntheticEvent } from "react";
 import Options from "../components/options";
 import { enable, isEnabled, disable } from '@tauri-apps/plugin-autostart';
 import { useUpdateStore } from "../store/updateStore";
-import {  error as errorLog } from '@tauri-apps/plugin-log';
+import { error as errorLog } from '@tauri-apps/plugin-log';
 import { load } from '@tauri-apps/plugin-store';
 import type { ValidResponse, StoredFlag } from '../types';
 import Database from '@tauri-apps/plugin-sql';
-import AcceptedExtensions from "../components/acceptedExtensions";
+//import AcceptedExtensions from "../components/acceptedExtensions";
 const store = await load('settings.json', { autoSave: true });
 
 type CredentialState = "checking" | "valid" | "invalid" | "unset";
@@ -64,7 +64,7 @@ export default function config() {
     const [saving, setSaving] = useState(false);
     const urlIsValid = urlInput.trim() === "" || URL_PATTERN.test(urlInput.trim());
     const urlIsCorrect = urlInput.trim() !== "" && URL_PATTERN.test(urlInput.trim());
-    let extension:Array<string> =[]
+    let extension: Array<string> = []
     useEffect(() => {
         async function check() {
             setRunInBackground(await isEnabled())
@@ -149,7 +149,7 @@ export default function config() {
                 setResponse(null);
                 setCredState("valid");
             }
-        } catch (error){
+        } catch (error) {
             errorLog(String(error))
             setResponse({ valid: false, type_acc: "credential" });
         } finally {
@@ -193,10 +193,10 @@ export default function config() {
                         <div className="flex items-center justify-between gap-3 my-4">
                             <div className="flex items-center gap-3 min-w-0">
                                 <div className={`w-9 h-9 rounded-md flex items-center justify-center shrink-0 ${credState === "valid"
-                                        ? "bg-green-500/10"
-                                        : credState === "invalid"
-                                            ? "bg-red-500/10"
-                                            : "bg-[#5B8DEF]/10"
+                                    ? "bg-green-500/10"
+                                    : credState === "invalid"
+                                        ? "bg-red-500/10"
+                                        : "bg-[#5B8DEF]/10"
                                     }`}>
                                     {credState === "checking" && <SpinnerCircleIcon className="w-4.5 h-4.5 text-[#5B8DEF]" />}
                                     {credState === "valid" && <CheckCircleIcon className="w-4.5 h-4.5 text-green-500" />}
@@ -353,13 +353,13 @@ export default function config() {
                         )}
                     </div>
                 </ImmichForm>
-                 <ImmichForm>
+                {/* <ImmichForm>
                     <h2 className="text-xl  my-4 mb-1">Allowed extensions</h2>
                     <p className="text-gray-400 text-sm">Select the extensions that you want to sync.</p>
                     <form action="">
                         {AcceptedExtensions(extension)}
                     </form>
-                </ImmichForm> 
+                </ImmichForm> */}
             </div>
         </div>
     )

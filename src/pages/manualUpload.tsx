@@ -97,6 +97,7 @@ export default function manualUpload() {
             const response = await invoke<ValidResponse>("sync_assets", {
                 path: folderPath,
                 album: albumName.trim() || undefined,
+                diskName:folderPath
             });
             setUploadedAlbum(albumName.trim());
             if (response.warning) {

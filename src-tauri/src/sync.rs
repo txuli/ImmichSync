@@ -390,7 +390,7 @@ pub async fn prev_scan_files(url: String, token: String, path: String) {
         files_list.len()
     );
     for file in &files_list {
-        log::debug!("[sync] pending: {} ({} bytes)", file.path.display(), file.size);
+        log::debug!("[sync] pending: {} ", file.path.display());
     }
 
     let root = Path::new(&path);
