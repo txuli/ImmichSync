@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import type { ValidResponse } from "../types";
 import { debug } from '@tauri-apps/plugin-log';
 import { Store } from '@tauri-apps/plugin-store';
+import PageContainer from "../components/PageContainer";
 interface NewDeviceProps {
     device: string;
     mountPoint: string;
@@ -80,8 +81,8 @@ export default function NewDevice({ device, mountPoint, onDone }: NewDeviceProps
     }
 
     return (
-        <div className="relative h-full bg-[#15171C]">
-            <div className="p-6">
+        <PageContainer>
+            <div className="px-6 pb-6">
                 <h2 className="text-2xl font-semibold">New device detected</h2>
                 <p className="text-gray-400 mt-2">
                     Choose how ImmichSync should handle this device from now on.
@@ -136,6 +137,6 @@ export default function NewDevice({ device, mountPoint, onDone }: NewDeviceProps
 
                 </ImmichForm>
             </div>
-        </div>
+        </PageContainer>
     );
 }

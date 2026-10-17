@@ -9,6 +9,7 @@ import { error as errorLog } from '@tauri-apps/plugin-log';
 import { load } from '@tauri-apps/plugin-store';
 import type { ValidResponse, StoredFlag } from '../types';
 import Database from '@tauri-apps/plugin-sql';
+import PageContainer from "../components/PageContainer";
 //import AcceptedExtensions from "../components/acceptedExtensions";
 const store = await load('settings.json', { autoSave: true });
 
@@ -174,7 +175,7 @@ export default function config() {
 
 
     return (
-        <div className="relative  bg-[#15171C] mb-5">
+        <PageContainer>
             {/* <div className="p-6  ">
                 <h2 className="text-2xl font-semibold">Config</h2>
                 <p className="text-gray-400 mt-2">
@@ -184,7 +185,7 @@ export default function config() {
 
             </div> */}
             {/* <div className="border-t-2 w-full border-t-[#272A31]  absolute"></div> */}
-            <div className="mt-5 px-4 sm:px-6 p-2">
+            <div className="px-4 sm:px-6">
                 <ImmichForm>
                     <h2 className="text-xl my-4 mb-1">Immich credentials</h2>
                     <p className="text-gray-400 text-sm">Necessary to upload the assets of the USB</p>
@@ -361,6 +362,6 @@ export default function config() {
                     </form>
                 </ImmichForm> */}
             </div>
-        </div>
+        </PageContainer>
     )
 }

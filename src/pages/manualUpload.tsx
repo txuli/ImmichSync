@@ -3,6 +3,7 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { invoke } from "@tauri-apps/api/core";
 import ImmichForm from "../components/ImmichForm";
 import type { ValidResponse } from "../types";
+import PageContainer from "../components/PageContainer";
 
 type UploadStatus = "idle" | "uploading" | "success" | "warning" | "error";
 
@@ -113,15 +114,15 @@ export default function manualUpload() {
     }
 
     return (
-        <div className="relative h-full bg-[#15171C]">
-            <div className="p-6">
+        <PageContainer>
+            {/* <div className="p-6">
                 <h2 className="text-2xl font-semibold">Manual upload</h2>
                 <p className="text-gray-400 mt-2">
                     Manually upload the photos from a folder to Immich when a device isn't detected automatically.
                 </p>
             </div>
-            <div className="border-t-2 w-full border-t-[#272A31] absolute"></div>
-            <div className="mt-5 px-4 sm:px-6">
+            <div className="border-t-2 w-full border-t-[#272A31] absolute"></div> */}
+            <div className="px-4 sm:px-6">
                 <ImmichForm>
                     <form className="my-4 min-w-0" onSubmit={handleUpload}>
                         <label htmlFor="folderPath" className="text-sm font-medium text-gray-300">
@@ -231,6 +232,6 @@ export default function manualUpload() {
                     </form>
                 </ImmichForm>
             </div>
-        </div>
+        </PageContainer>
     );
 }

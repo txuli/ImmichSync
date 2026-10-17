@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 (pre-1.0, so minor bumps may include breaking changes).
 
+## [1.0.2] - 2026-10-17
+
+UI polish release: no changes to sync behaviour.
+
+### Added
+
+- New shared `PageContainer` layout component, used by Dashboard, Config, Known devices, Manual upload and New device, so every page has the same background, vertical padding and full-height behaviour.
+- Custom dark scrollbar matching the app theme (thin, rounded thumb that turns blue on hover), with a `scrollbar-width`/`scrollbar-color` fallback for engines without `::-webkit-scrollbar` (WebKitGTK).
+
+### Changed
+
+- Removed the per-page title/subtitle headers and divider line on Dashboard, Config, Known devices and Manual upload, so the content starts right at the top of the page. The New device page keeps its header.
+- Tighter spacing between form cards (`ImmichForm`): a smaller top margin, and none on the first card.
+- Pages now use `min-h-full` instead of `h-full`, so long content (such as the Known devices list) scrolls instead of being clipped.
+- The Dashboard "Recent activity" feed now shows the last 5 syncs instead of 8.
+- Version bumped to 1.0.2 in `package.json`, `Cargo.toml`, `Cargo.lock` and `tauri.conf.json`.
+
+### Internal
+
+- Removed unused imports in `sync.rs`.
+
 ## [1.0.1] -2026-10-16
 
 ### Added

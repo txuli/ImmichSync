@@ -8,6 +8,38 @@ body,
   background-color: #15171c;
 }
 
+/* Custom scrollbar (WebView2 / Chromium) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: #2f333c;
+  border-radius: 9999px;
+  border: 2px solid #15171c;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: #5b8def;
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Fallback for engines without ::-webkit-scrollbar (WebKitGTK/Firefox) */
+@supports not selector(::-webkit-scrollbar) {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: #2f333c transparent;
+  }
+}
+
 @layer base {
   .logo.vite:hover {
     filter: drop-shadow(0 0 2em #747bff);

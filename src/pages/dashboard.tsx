@@ -4,6 +4,7 @@ import { load } from "@tauri-apps/plugin-store";
 import { isEnabled as isAutostartEnabled } from "@tauri-apps/plugin-autostart";
 import { useSyncStore } from "../store/syncStore";
 import type { ValidResponse, StoredFlag } from "../types";
+import PageContainer from "../components/PageContainer";
 
 const store = await load("settings.json", { autoSave: true });
 
@@ -80,11 +81,11 @@ export default function dashboard() {
     }[connection];
 
     return (
-        <div className="p-4 bg-[#15171C]  ">
+        <PageContainer className="px-4">
             {/* <h2 className="text-2xl font-semibold">Dashboard</h2> */}
             {/* <p className="text-gray-400 mt-2">Overview of your sync activity.</p> */}
 
-            <div className="grid gap-4 mt-6 sm:grid-cols-2 max-w-4xl">
+            <div className="grid gap-4 sm:grid-cols-2 max-w-4xl">
                 <div className="bg-[#20232B] rounded-md border border-[#272A31] p-4">
                     <div className="flex items-center justify-between">
                         <h3 className="text-sm font-medium text-gray-200">Server connection</h3>
@@ -188,6 +189,6 @@ export default function dashboard() {
                     ))}
                 </div>
             </div>
-        </div>
+        </PageContainer>
     );
 }

@@ -4,6 +4,7 @@ import ImmichForm from '../components/ImmichForm';
 import Options from '../components/options';
 import device from '../assets/devices.svg';
 import type { DbDevice } from '../types';
+import PageContainer from "../components/PageContainer";
 
 function DeviceIcon({ className }: { className?: string }) {
     return <img src={device} alt="Device" className={className} />
@@ -40,13 +41,13 @@ export default function decices() {
     }
 
     return (
-        <div className="relative h-full bg-[#15171C]">
-            <div className="p-6">
+        <PageContainer>
+            {/* <div className="p-6">
                 <h2 className="text-2xl font-semibold">Known devices</h2>
                 <p className="text-gray-400 mt-2">Modify your saved devices</p>
-            </div>
-            <div className="border-t-2 w-full border-t-[#272A31] absolute"></div>
-            <div className="mt-4 px-4 sm:px-6 space-y-3">
+            </div> */}
+            {/* <div className="border-t-2 w-full border-t-[#272A31] absolute"></div> */}
+            <div className="px-4 sm:px-6 space-y-3 overflow-hidden scroll-auto ">
                 {devices.length === 0 && (
                     <ImmichForm>
                         <p className="text-sm text-gray-500 my-4">No devices saved yet.</p>
@@ -94,6 +95,6 @@ export default function decices() {
                     </ImmichForm>
                 ))}
             </div>
-        </div>
+        </PageContainer>
     )
 }
