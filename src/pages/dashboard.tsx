@@ -80,9 +80,9 @@ export default function dashboard() {
     }[connection];
 
     return (
-        <div className="p-6 bg-[#15171C] h-full">
-            <h2 className="text-2xl font-semibold">Dashboard</h2>
-            <p className="text-gray-400 mt-2">Overview of your sync activity.</p>
+        <div className="p-4 bg-[#15171C]  ">
+            {/* <h2 className="text-2xl font-semibold">Dashboard</h2> */}
+            {/* <p className="text-gray-400 mt-2">Overview of your sync activity.</p> */}
 
             <div className="grid gap-4 mt-6 sm:grid-cols-2 max-w-4xl">
                 <div className="bg-[#20232B] rounded-md border border-[#272A31] p-4">
@@ -156,9 +156,9 @@ export default function dashboard() {
                 </div>
             </div>
 
-            <div className="mt-6 max-w-4xl">
+            <div className="mt-6 max-w-4xl mb-5">
                 <h3 className="text-sm font-medium text-gray-200 mb-2">Recent activity</h3>
-                <div className="bg-[#20232B] rounded-md border border-[#272A31] divide-y divide-[#272A31]">
+                <div className="bg-[#20232B] rounded-md border border-[#272A31] divide-y divide-[#272A31] relative">
                     {history.length === 0 && (
                         <p className="text-sm text-gray-500 p-4">Nothing synced yet.</p>
                     )}

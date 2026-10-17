@@ -23,7 +23,7 @@ async function loadPersistedHistory(): Promise<SyncStatusEvent[]> {
     try {
         const db = await Database.load("sqlite:immichsync.db");
         const rows = await db.select<ActivityRow[]>(
-            "SELECT device, uploadedPhotos, lastSync, status, error FROM activity ORDER BY lastSync DESC LIMIT 8"
+            "SELECT device, uploadedPhotos, lastSync, status, error FROM activity ORDER BY lastSync DESC LIMIT 5"
         );
         return rows.map((row) => ({
             status: (row.status as SyncStatus) ?? "success",
