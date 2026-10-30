@@ -1,0 +1,65 @@
+name: "linux build"
+
+# Builds the Linux bundles on every push to linux-integration (or by hand),
+# without publishing a release. The bundles are attached to the run as an
+# artifact so they can be tried on a real Linux desktop.
+on:
+  push:
+    branches:
+      - linux-integration
+  workflow_dispatch:
+
+concurrency:
+  group: linux-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    permissions:
+      contents: read
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev libssl-dev patchelf
+
+      # Committed from Windows, git may not keep the executable bit.
+      - name: Make immich-go executable
+        run: chmod +x src-tauri/binaries/immich-go-x86_64-unknown-linux-gnu
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.13
+          cache: "pnpm"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: "src-tauri -> target"
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      # The signing key is needed because tauri.conf.json enables
+      # createUpdaterArtifacts.
+      - name: Build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: pnpm tauri build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: immichsync-linux-${{ github.sha }}
+          path: |
+            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/rpm/*.rpm
+          if-no-files-found: error
+          retention-days: 14
