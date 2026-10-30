@@ -1,13 +1,13 @@
 # ImmichSync
 
-A Windows tray app that watches for newly connected USB drives / SD cards, and offers to upload the photos and videos it finds straight to your [Immich](https://immich.app/) server, grouped into a dated album, no manual `immich-go` commands needed.
+A Windows and Linux tray app that watches for newly connected USB drives / SD cards, and offers to upload the photos and videos it finds straight to your [Immich](https://immich.app/) server, grouped into a dated album, no manual `immich-go` commands needed.
 
 > **Disclaimer:** This is an independent, unofficial project. It is **not affiliated with, endorsed by, or sponsored by Immich** (or its authors/maintainers). It talks to a self-hosted Immich server through [immich-go](https://github.com/simulot/immich-go), which is bundled as a sidecar binary.
 
 ## Features
 
 - **Automatic drive detection** runs in the background and watches for removable disks being connected.
-- **Native Windows toast notifications** with "Sync" / "Ignore" actions when a new device is detected.
+- **Native notifications** with "Sync" / "Ignore" actions when a new device is detected (Windows toasts; freedesktop notifications on Linux, which fall back to opening the app on desktops whose notifications have no buttons).
 - **One-click upload** via [immich-go](https://github.com/simulot/immich-go), which handles deduplication, EXIF/date extraction, and album assignment. Each sync creates a new album named `ImmichSync - <date> <time>`.
 - **Dashboard** with live sync status (idle / syncing / success / error), server connection health, and a recent-activity feed.
 - **Run on startup** optionally launches at login and stays hidden in the tray (no window flash) until you open it or a sync needs your attention.
@@ -21,13 +21,17 @@ A Windows tray app that watches for newly connected USB drives / SD cards, and o
 ## How it works
 
 1. A background thread polls the list of removable disks (via [`sysinfo`](https://crates.io/crates/sysinfo)).
-2. When a new one appears, a Windows toast notification pops up with "Sync" / "Ignore" buttons.
+2. When a new one appears, a notification pops up with "Sync" / "Ignore" buttons.
 3. Tapping "Sync" runs the bundled `immich-go upload from-folder` sidecar against the drive's mount point, using the server URL / API key you configured.
 4. A follow-up notification tells you whether the upload succeeded or failed, and the Dashboard reflects it live.
 
 ## Requirements
 
-- Windows 10/11 (toast notifications and autostart use Windows-specific APIs).
+- Windows 10/11, or a Linux desktop with:
+  - WebKitGTK 4.1 and a system tray (on GNOME, the [AppIndicator extension](https://extensions.gnome.org/extension/615/appindicator-support/)); without a tray, reopen the window by launching the app again.
+  - A notification server (any desktop environment ships one).
+  - Drives auto-mounted by the desktop (under `/media` or `/run/media`).
+  - The AppImage is the only Linux package that updates itself; `.deb` / `.rpm` installs must be updated by hand.
 - A running Immich instance and an API key with permission to create albums and upload assets.
 
 ## Getting started (development)

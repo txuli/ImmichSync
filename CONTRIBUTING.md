@@ -18,15 +18,16 @@ src-tauri/
   src/
     lib.rs               App setup, tray icon, disk-polling loop
     sync.rs               Runs the immich-go sidecar
-    notification/         Windows toast notifications + sync-status events
-  binaries/              Bundled immich-go sidecar executable
+    notification/         Toast (Windows) / freedesktop (Linux) notifications
+  binaries/              Bundled immich-go sidecars (one per target triple)
   capabilities/          Tauri v2 permission manifests
 .github/workflows/       CI: builds and publishes signed releases on tag push
 ```
 
 ## Requirements
 
-- Windows 10/11 (the app relies on Windows-specific APIs: toast notifications, autostart, disk polling).
+- Windows 10/11 or Linux. On Linux, install the system libraries from the [Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/#linux) plus `libayatana-appindicator3-dev` (see `.github/workflows/release.yml` for the exact list).
+- Updating immich-go means replacing every binary in `src-tauri/binaries/` with the same version, named `immich-go-<target triple>` (on Linux, keep it executable: `git update-index --chmod=+x`).
 - [Node.js](https://nodejs.org/) + [pnpm](https://pnpm.io/) (`packageManager` is pinned in `package.json`).
 - [Rust](https://www.rust-lang.org/tools/install) (stable toolchain) and the [Tauri v2 prerequisites](https://v2.tauri.app/start/prerequisites/).
 

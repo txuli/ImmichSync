@@ -171,6 +171,12 @@ pub fn run() {
     let database_url = "sqlite:immichsync.db";
 
     let result = tauri::Builder::default()
+        // Must be registered first. Launching the app again (e.g. from the
+        // app menu when the tray icon is hidden) shows the running window
+        // instead of starting a second device watcher.
+        .plugin(tauri_plugin_single_instance::init(|app, _args, _cwd| {
+            notification::actions::show_main_window(app);
+        }))
         .plugin(
             tauri_plugin_sql::Builder::new()
                 .add_migrations(database_url, migrations)
@@ -204,16 +210,21 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             verify_token,
             save_credentials,
-            sync_assets
+            sync_assets,
+            notification::actions::sync_device
         ])
         .setup(|app| {
             log::info!("[startup] ImmichSync starting up");
+            // Linux trays don't report icon clicks, so the menu is the only
+            // way back to the window there.
+            let open_i = MenuItem::with_id(app, "open", "Open ImmichSync", true, None::<&str>)?;
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-            let menu = Menu::with_items(app, &[&quit_i])?;
+            let menu = Menu::with_items(app, &[&open_i, &quit_i])?;
             let _tray = TrayIconBuilder::new()
                 .menu(&menu)
                 .show_menu_on_left_click(true)
                 .on_menu_event(|app, event| match event.id.as_ref() {
+                    "open" => notification::actions::show_main_window(app),
                     "quit" => {
                         log::info!("[tray] quit requested");
                         app.exit(0);

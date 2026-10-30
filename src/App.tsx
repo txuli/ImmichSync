@@ -8,14 +8,16 @@ import Dashboard from "./pages/dashboard";
 import Config from "./pages/config";
 import ManualUpload from "./pages/manualUpload";
 import NewDevice from "./pages/newDevice";
+import KnownDevice from "./pages/knownDevice";
 import Decices from "./pages/devices";
 import { useSyncStore } from "./store/syncStore";
 import { useUpdateStore } from "./store/updateStore";
-import type { View, NewDeviceNavigationPayload } from "./types";
+import type { View, NewDeviceNavigationPayload, KnownDeviceNavigationPayload } from "./types";
 function App() {
   const [view, setView] = useState<View>("dashboard");
   const [newDeviceName, setNewDeviceName] = useState("");
   const [newDevicePath, setNewDevicePath] = useState("");
+  const [knownDevice, setKnownDevice] = useState<KnownDeviceNavigationPayload | null>(null);
 
   useEffect(() => {
 
@@ -46,6 +48,19 @@ function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const unlisten = listen<KnownDeviceNavigationPayload>(
+      "navigate-known-device",
+      (event) => {
+        setKnownDevice(event.payload);
+        setView("knownDevice");
+      }
+    );
+    return () => {
+      unlisten.then((fn) => fn());
+    };
+  }, []);
+
   return (
     <div className="flex flex-col h-full">
       <TitleBar />
@@ -59,6 +74,14 @@ function App() {
             <NewDevice
               device={newDeviceName}
               mountPoint={newDevicePath}
+              onDone={() => setView("dashboard")}
+            />
+          )}
+          {view === "knownDevice" && knownDevice && (
+            <KnownDevice
+              device={knownDevice.diskName}
+              mountPoint={knownDevice.mountPoint}
+              albumName={knownDevice.albumName}
               onDone={() => setView("dashboard")}
             />
           )}

@@ -1,231 +1,33 @@
-
-use std::path::PathBuf;
-use tauri::{AppHandle, Manager};
+use tauri::AppHandle;
 use tauri_plugin_log::log;
-use crate::emit_sync_status::emit_sync_status;
+use super::{actions, ask, Prompt};
 
-
-fn app_icon_path<R: tauri::Runtime>(app: &AppHandle<R>) -> Option<PathBuf> {
-    if let Ok(path) = app
-        .path()
-        .resolve("icons/128x128.png", tauri::path::BaseDirectory::Resource)
-    {
-        if path.exists() {
-            return Some(strip_verbatim_prefix(path));
-        }
-    }
-
-    #[cfg(debug_assertions)]
-    {
-        let dev_path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("icons/128x128.png");
-        if dev_path.exists() {
-            return Some(strip_verbatim_prefix(dev_path));
-        }
-    }
-
-    log::warn!("[notification] app icon not found in any expected path");
-    None
-}
-
-fn strip_verbatim_prefix(path: PathBuf) -> PathBuf {
-    match path.to_str() {
-        Some(s) => match s.strip_prefix(r"\\?\") {
-            Some(stripped) => PathBuf::from(stripped),
-            None => path,
-        },
-        None => path,
-    }
-}
-
-#[cfg(windows)]
-const APP_ID: &str = "com.txuli.immichsync";
-#[cfg(windows)]
-const APP_NAME: &str = "ImmichSync";
-
-#[cfg(windows)]
-fn register_aumid(icon_path: Option<&std::path::Path>) {
-    use windows_registry::CURRENT_USER;
-
-    let result = (|| -> windows_registry::Result<()> {
-        let key = CURRENT_USER.create(format!(r"SOFTWARE\Classes\AppUserModelId\{APP_ID}"))?;
-        key.set_string("DisplayName", APP_NAME)?;
-        key.set_string("IconBackgroundColor", "0")?;
-        if let Some(icon_path) = icon_path {
-            key.set_hstring("IconUri", &icon_path.into())?;
-        }
-        Ok(())
-    })();
-
-    if let Err(err) = result {
-        log::error!("[notification] failed to register the app's AUMID: {err:?}");
-    }
-}
-
-#[cfg(windows)]
 pub fn notify_known_device(
     app: &AppHandle,
     disk_name: &str,
     mount_point: &std::path::Path,
     album_name: &str,
 ) {
-    use tauri_winrt_notification::{Duration, Toast};
-
-    let disk_name = disk_name.to_string();
-    let mount_point = mount_point.to_path_buf();
-    let album_name = album_name.to_string();
+    log::info!("[notification] showing known-device notification for {disk_name} (album \"{album_name}\")");
     let app_handle = app.clone();
-    let icon_path = app_icon_path(app);
-    register_aumid(icon_path.as_deref());
+    let disk = disk_name.to_string();
+    let mount_point = mount_point.to_path_buf();
+    let album = album_name.to_string();
 
-    log::info!("[notification] showing known-device toast for {disk_name} (album \"{album_name}\")");
-    let result = Toast::new(APP_ID)
-        .title("Device reconnected")
-        .text1(&format!("{disk_name} is back — sync to \"{album_name}\"?"))
-        .add_button("Sync", "sync")
-        .add_button("Ignore", "ignore")
-        .duration(Duration::Short)
-        .on_activated(move |action| {
-            match action.as_deref() {
-                Some("sync") => {
-                    log::info!("[notification] sync accepted for {disk_name}, starting thread");
-                    let app_handle = app_handle.clone();
-                    let path = mount_point.to_string_lossy().to_string();
-                    let disk_name = disk_name.clone();
-                    let album_name = album_name.clone();
-                    std::thread::spawn(move || {
-                        emit_sync_status(&app_handle, "syncing", &disk_name, None, 0, 0);
-                        // Snapshot the media count/size before syncing — sync_assets may
-                        // delete these files afterward if "remove assets after upload" is on.
-                        let (uploaded_photos, uploaded_size) = crate::sync::scan_media_stats(&path);
-                        let sync_result = tauri::async_runtime::block_on(crate::sync::sync_assets(
-                            app_handle.clone(),
-                            path.clone(),
-                            Some(album_name),
-                            disk_name.clone()
-                        ));
-                        log::debug!(
-                            "[notification] sync_assets finished for {disk_name}, ok={}",
-                            sync_result.is_ok()
-                        );
-                        match sync_result {
-                            Ok(response) => {
-                                if let Some(warning) = response.warning {
-                                    upload_success_with_warning(&warning);
-                                    emit_sync_status(
-                                        &app_handle,
-                                        "success",
-                                        &disk_name,
-                                        Some(warning),
-                                        uploaded_photos,
-                                        uploaded_size,
-                                    );
-                                } else {
-                                    upload_success();
-                                    emit_sync_status(
-                                        &app_handle,
-                                        "success",
-                                        &disk_name,
-                                        None,
-                                        uploaded_photos,
-                                        uploaded_size,
-                                    );
-                                }
-                            }
-                            Err(err) => {
-                                log::error!("[notification] sync failed for {disk_name}: {err}");
-                                upload_failed(&err);
-                                emit_sync_status(&app_handle, "error", &disk_name, Some(err), 0, 0);
-                            }
-                        }
-                    });
-                }
-                Some("ignore") => log::info!("[notification] ignore pressed for {disk_name}"),
-                _ => {}
-            }
-            Ok(())
-        })
-        .show();
-
-    if let Err(err) = result {
-        log::error!("[notification] failed to show the known-device notification: {err:?}");
-    }
-}
-#[cfg(windows)]
-pub fn upload_success() {
-    use tauri_winrt_notification::{Duration, Toast};
-
-    let result = Toast::new(APP_ID)
-        .title("Sync complete")
-        .text1("Your photos were uploaded to Immich successfully")
-        .duration(Duration::Short)
-        .show();
-
-    log::debug!("[notification] upload_success toast -> {result:?}");
-    if let Err(err) = result {
-        log::error!("[notification] failed to show the upload-success notification: {err:?}");
-    }
-}
-
-/// Same as `upload_success`, but for a sync that completed with some files
-/// skipped or errored (e.g. a transient IO error on a large batch) — the
-/// rest of the batch still uploaded, so this isn't a failure, just a
-/// heads-up.
-#[cfg(windows)]
-pub fn upload_success_with_warning(warning: &str) {
-    use tauri_winrt_notification::{Duration, Toast};
-
-    let result = Toast::new(APP_ID)
-        .title("Sync complete with some errors")
-        .text1(&format!(
-            "Most photos uploaded, but some failed: {warning}"
-        ))
-        .duration(Duration::Short)
-        .show();
-
-    log::debug!("[notification] upload_success_with_warning toast -> {result:?}");
-    if let Err(err) = result {
-        log::error!("[notification] failed to show the upload-success-with-warning notification: {err:?}");
-    }
-}
-
-#[cfg(windows)]
-pub fn upload_failed(error: &str) {
-    use tauri_winrt_notification::{Duration, Toast};
-
-    let result = Toast::new(APP_ID)
-        .title("Sync failed")
-        .text1(&format!("Could not upload your photos: {error}"))
-        .duration(Duration::Short)
-        .show();
-
-    if let Err(err) = result {
-        log::error!("[notification] failed to show the upload-failed notification: {err:?}");
-    }
-}
-#[cfg(not(windows))]
-pub fn notify_known_device<R: tauri::Runtime>(
-    app: &AppHandle<R>,
-    disk_name: &str,
-    _mount_point: &std::path::Path,
-    album_name: &str,
-) {
-    use tauri_plugin_notification::NotificationExt;
-
-    let icon_path = app_icon_path(app);
-
-    let mut builder = app
-        .notification()
-        .builder()
-        .title("Device reconnected")
-        .body(format!("{disk_name} is back — sync to \"{album_name}\"?"));
-
-    if let Some(icon_path) = &icon_path {
-        if let Some(icon_path) = icon_path.to_str() {
-            builder = builder.icon(icon_path);
-        }
-    }
-
-    if let Err(err) = builder.show() {
-        log::error!("[notification] failed to show the known-device notification: {err:?}");
-    }
+    ask(
+        app,
+        Prompt {
+            title: "Device reconnected",
+            body: &format!("{disk_name} is back — sync to \"{album_name}\"?"),
+            buttons: &[("sync", "Sync"), ("ignore", "Ignore")],
+            fallback_body: &format!("{disk_name} is back — click to open ImmichSync"),
+            fallback_action: "default",
+        },
+        move |action| match action {
+            "sync" => actions::start_sync(&app_handle, &disk, &mount_point, Some(album.clone())),
+            "default" => actions::open_known_device(&app_handle, &disk, &mount_point, &album),
+            "ignore" => log::info!("[notification] ignore pressed for {disk}"),
+            _ => {}
+        },
+    );
 }

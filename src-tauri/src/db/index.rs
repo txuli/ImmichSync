@@ -39,3 +39,18 @@ pub async fn check(pool: &SqlitePool, device: &str) -> Result<Option<DeviceRow>,
             err
         })
 }
+
+/// Renames the device saved as `old` to `new`. Returns whether one was found.
+#[cfg(windows)]
+pub async fn rename_device(pool: &SqlitePool, old: &str, new: &str) -> Result<bool, sqlx::Error> {
+    sqlx::query("UPDATE devices SET device = ? WHERE id = (SELECT id FROM devices WHERE device = ? LIMIT 1)")
+        .bind(new)
+        .bind(old)
+        .execute(pool)
+        .await
+        .map(|result| result.rows_affected() > 0)
+        .map_err(|err| {
+            log::error!("[db] failed to rename device {old} to {new}: {err}");
+            err
+        })
+}
